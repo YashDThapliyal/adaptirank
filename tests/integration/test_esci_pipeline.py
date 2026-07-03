@@ -33,7 +33,10 @@ def test_fixture_pipeline_preserves_contract_and_exact_counts(tmp_path: Path) ->
     }
     assert result.report["label_distribution"] == {"C": 3, "E": 9, "I": 3, "S": 3}
     assert result.report["catalog_coverage"] == 1.0
+    assert result.report["scientific_eligibility"] is False
     assert result.report["scientific_result_eligible"] is False
+    assert result.report["validation_gates"]["full_uncapped_configuration"] is False
+    assert result.report["split_validation"]["train_test_overlap"] == 0
 
     relevance = pl.read_parquet(result.dataset_dir / "relevance.parquet")
     assert set(relevance.get_column("esci_label")) == {"E", "S", "C", "I"}

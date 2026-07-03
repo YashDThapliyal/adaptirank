@@ -147,7 +147,7 @@ def _query_consistency(examples: pl.DataFrame) -> None:
 
 def _fingerprint(config: EsciConfig, source_manifest: dict[str, Any]) -> str:
     semantic = {
-        "pipeline_schema": "adaptirank-esci-v1",
+        "pipeline_schema": "adaptirank-esci-v2",
         "source_revision": config.source.revision,
         "source_files": [
             {
@@ -199,6 +199,7 @@ def _report_markdown(report: dict[str, Any]) -> str:
         f"- Queries: {report['counts']['queries']}",
         f"- Judgments: {report['counts']['judgments']}",
         f"- Catalog coverage: {report['catalog_coverage']:.6f}",
+        f"- Scientific eligibility: `{str(report['scientific_eligibility']).lower()}`",
         "",
         "## Split distribution",
         "",
@@ -215,6 +216,50 @@ def _report_markdown(report: dict[str, Any]) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def _provenance_complete(source_manifest: dict[str, Any]) -> bool:
+    """Require complete, pinned, observed provenance for all three source roles."""
+
+    required_roles = {"examples", "products", "sources"}
+    files = source_manifest.get("files")
+    if not isinstance(files, list):
+        return False
+    roles = {item.get("role") for item in files if isinstance(item, dict)}
+    if roles != required_roles or not source_manifest.get("pinned_commit_sha"):
+        return False
+    for item in files:
+        if not isinstance(item, dict):
+            return False
+        observed_hash = item.get("observed_sha256")
+        if not isinstance(observed_hash, str) or len(observed_hash) != 64:
+            return False
+        if not isinstance(item.get("observed_size_bytes"), int) or item["observed_size_bytes"] <= 0:
+            return False
+        if source_manifest.get("source_mode") == "official" and not item.get("source_url"):
+            return False
+    return True
+
+
+def _split_validation(splits: pl.DataFrame) -> dict[str, Any]:
+    """Return explicit locale-aware split overlap and source-test preservation evidence."""
+
+    key_columns = ["product_locale", "query_id"]
+    keys = {
+        name: set(splits.filter(pl.col("benchmark_split") == name).select(key_columns).iter_rows())
+        for name in ("train", "validation", "test")
+    }
+    source_test = set(
+        splits.filter(pl.col("source_split") == "test").select(key_columns).iter_rows()
+    )
+    return {
+        "train_validation_overlap": len(keys["train"] & keys["validation"]),
+        "train_test_overlap": len(keys["train"] & keys["test"]),
+        "validation_test_overlap": len(keys["validation"] & keys["test"]),
+        "source_test_query_count": len(source_test),
+        "benchmark_test_query_count": len(keys["test"]),
+        "source_test_preserved_exactly": source_test == keys["test"],
+    }
 
 
 def build_dataset(
@@ -338,6 +383,38 @@ def build_dataset(
     if coverage != 1.0:
         raise ValueError(f"catalog coverage must be 1.0, observed {coverage}")
 
+    split_validation = _split_validation(splits)
+    validation_gates = {
+        "schema_validation": True,
+        "key_validation": True,
+        "label_validation": True,
+        "catalog_coverage": coverage == 1.0,
+        "zero_query_overlap": all(
+            split_validation[key] == 0
+            for key in (
+                "train_validation_overlap",
+                "train_test_overlap",
+                "validation_test_overlap",
+            )
+        ),
+        "source_test_preserved_exactly": split_validation["source_test_preserved_exactly"],
+        "source_provenance_complete": _provenance_complete(source_manifest),
+        "full_uncapped_configuration": all(
+            value is None
+            for value in (
+                config.sampling.max_train_queries,
+                config.sampling.max_test_queries,
+                config.sampling.background_products,
+            )
+        ),
+    }
+    scientific_eligibility = (
+        config.run.purpose == "scientific_benchmark"
+        and config.variant == "small"
+        and config.product_locale == "us"
+        and config.source.mode == "official"
+        and all(validation_gates.values())
+    )
     fingerprint = _fingerprint(config, source_manifest)
     root = project_root()
     dataset_dir = resolve_project_path(config.processed_dir, root) / fingerprint
@@ -359,7 +436,8 @@ def build_dataset(
     report: dict[str, Any] = {
         "generated_at": datetime.now(UTC).isoformat(),
         "purpose": config.run.purpose,
-        "scientific_result_eligible": config.run.purpose == "scientific_benchmark",
+        "scientific_eligibility": scientific_eligibility,
+        "scientific_result_eligible": scientific_eligibility,
         "variant": config.variant,
         "variant_filter": f"{config.variant_column} == 1",
         "product_locale": config.product_locale,
@@ -373,6 +451,8 @@ def build_dataset(
         "split_distribution": _distribution(queries, "benchmark_split"),
         "label_distribution": _distribution(relevance, "esci_label"),
         "catalog_coverage": coverage,
+        "validation_gates": validation_gates,
+        "split_validation": split_validation,
         "judgment_semantics": {
             "missing_label": "unknown/unjudged",
             "missing_label_is_irrelevant": False,
@@ -382,7 +462,7 @@ def build_dataset(
     }
     manifest = {
         "dataset_fingerprint": fingerprint,
-        "pipeline_schema": "adaptirank-esci-v1",
+        "pipeline_schema": "adaptirank-esci-v2",
         "source_provenance": source_manifest,
         "config": config.model_dump(mode="json"),
         "outputs": {

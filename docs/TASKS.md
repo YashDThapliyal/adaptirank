@@ -3,9 +3,13 @@
 - [x] M0 foundation: local lint, typing, tests, and smoke passed.
 - [x] M1 fixture pipeline: lint, typing, tests, smoke, and network-free CI passed.
 - [x] M1 official-source sampled integration: complete source download and sampled processing passed.
-- [ ] M1 full US Task 1 benchmark: `NOT_RUN`.
+- [~] M1.5 full US Task 1 benchmark: add explicit scientific-eligibility gates and run uncapped.
 - [ ] M1 explicit US large variant: `NOT_RUN`.
-- [ ] M2 retrieval.
+- [~] M2 retrieval foundation and shared evaluation/candidate contract.
+- [ ] M2A BM25 retrieval.
+- [ ] M2B pretrained dense retrieval.
+- [ ] M2C weighted and reciprocal-rank hybrid retrieval.
+- [ ] M2 full scientific benchmark comparison and failure analysis.
 - [ ] M3 ranking.
 - [ ] M4 simulator.
 - [ ] M5 bandits.
