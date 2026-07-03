@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.venv/
+.uv-cache/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Downloaded data and generated artifacts are local evidence, not source.
+artifacts/**
+!artifacts/.gitkeep
