@@ -1,0 +1,23 @@
+product_id,product_title,product_description,product_bullet_point,product_brand,product_color,product_locale
+P01,Trail Shoe Pro,Waterproof trail shoe,grippy sole,North,blue,us
+P02,Trail Shoe Lite,Light trail shoe,mesh upper,North,green,us
+P03,Steel Bottle,Insulated bottle,one liter,Aqua,silver,us
+P04,Bottle Brush,Cleaning brush,long handle,Aqua,white,us
+P05,Winter Gloves,Warm gloves,thermal lining,Snow,black,us
+P06,Summer Gloves,Thin gloves,light fabric,Snow,white,us
+P07,USB C Charger,Fast phone charger,30 watt,Volt,white,us
+P08,USB C Cable,Charging cable,two meter,Volt,black,us
+P09,Burr Grinder,Coffee grinder,steel burr,Brew,black,us
+P10,Tea Kettle,Electric kettle,one liter,Brew,red,us
+P11,Yoga Mat,Non slip mat,six millimeter,Calm,purple,us
+P12,Yoga Block,Foam yoga block,high density,Calm,blue,us
+P13,Rain Jacket,Waterproof shell,sealed seams,North,yellow,us
+P14,Windbreaker,Light jacket,wind resistant,North,blue,us
+P15,Desk Lamp,LED desk lamp,dimmable,Bright,black,us
+P16,Floor Lamp,Tall floor lamp,warm light,Bright,white,us
+P17,Dog Leash,Strong dog leash,padded handle,Paw,red,us
+P18,Dog Collar,Adjustable collar,reflective,Paw,blue,us
+P19,Large Variant Product,Only in large example,fixture,Test,gray,us
+P20,Background Tent,Unjudged catalog product,two person,Camp,green,us
+P21,Background Socks,Unjudged catalog product,wool,Camp,gray,us
+ES01,Zapatos,Zapatos de correr,suela fuerte,Marca,azul,es

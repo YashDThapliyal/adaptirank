@@ -1,0 +1,34 @@
+run:
+  experiment: esci_official_sample
+  purpose: integration_verification
+  seed: 42
+  artifacts_dir: artifacts
+source:
+  mode: official
+  repository: https://github.com/amazon-science/esci-data
+  revision: 7916cdf6ab75a462e77f20ab40428a10923998d5
+  raw_dir: artifacts/datasets/esci/raw/7916cdf6ab75a462e77f20ab40428a10923998d5
+  files:
+    - role: examples
+      filename: shopping_queries_dataset_examples.parquet
+      url: https://media.githubusercontent.com/media/amazon-science/esci-data/7916cdf6ab75a462e77f20ab40428a10923998d5/shopping_queries_dataset/shopping_queries_dataset_examples.parquet
+    - role: products
+      filename: shopping_queries_dataset_products.parquet
+      url: https://media.githubusercontent.com/media/amazon-science/esci-data/7916cdf6ab75a462e77f20ab40428a10923998d5/shopping_queries_dataset/shopping_queries_dataset_products.parquet
+    - role: sources
+      filename: shopping_queries_dataset_sources.csv
+      url: https://raw.githubusercontent.com/amazon-science/esci-data/7916cdf6ab75a462e77f20ab40428a10923998d5/shopping_queries_dataset/shopping_queries_dataset_sources.csv
+variant: small
+product_locale: us
+validation_fraction: 0.1
+sampling:
+  max_train_queries: 300
+  max_test_queries: 100
+  background_products: 10000
+processed_dir: artifacts/datasets/esci/processed
+label_grades:
+  E: 3
+  S: 2
+  C: 1
+  I: 0
+

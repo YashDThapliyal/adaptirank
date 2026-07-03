@@ -1,0 +1,21 @@
+example_id,query,query_id,product_id,product_locale,esci_label,small_version,large_version,split
+1,trail shoes,101,P01,us,E,1,1,train
+2,trail shoes,101,P02,us,S,1,1,train
+3,water bottle,102,P03,us,E,1,1,train
+4,water bottle,102,P04,us,C,1,1,train
+5,winter gloves,103,P05,us,E,1,1,train
+6,winter gloves,103,P06,us,I,1,1,train
+7,phone charger,104,P07,us,E,1,1,train
+8,phone charger,104,P08,us,S,1,1,train
+9,coffee grinder,105,P09,us,E,1,1,train
+10,coffee grinder,105,P10,us,I,1,1,train
+11,yoga mat,106,P11,us,E,1,1,train
+12,yoga mat,106,P12,us,C,1,1,train
+13,rain jacket,107,P13,us,E,1,1,test
+14,rain jacket,107,P14,us,S,1,1,test
+15,desk lamp,108,P15,us,E,1,1,test
+16,desk lamp,108,P16,us,I,1,1,test
+17,dog leash,109,P17,us,E,1,1,test
+18,dog leash,109,P18,us,C,1,1,test
+19,large only,110,P19,us,E,0,1,train
+20,zapatos,201,ES01,es,E,1,1,train

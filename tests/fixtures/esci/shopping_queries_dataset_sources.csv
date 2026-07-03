@@ -1,0 +1,12 @@
+query_id,source
+101,fixture_a
+102,fixture_a
+103,fixture_a
+104,fixture_b
+105,fixture_b
+106,fixture_b
+107,fixture_a
+108,fixture_b
+109,fixture_b
+110,fixture_a
+201,fixture_es
