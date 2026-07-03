@@ -107,11 +107,22 @@ its artifact run directory.
   bit-for-bit, confirming the retrieval/eval code is deterministic given a fixed index; the canonical
   run above was then rebuilt from scratch to also give the index clean provenance.
 
-## M2B/M2C blocked evidence
+## M2B dense official-sample smoke
 
-- Dense model: `sentence-transformers/multi-qa-MiniLM-L6-cos-v1`
-- Pinned model revision: `b207367332321f8e44f96e224ef15bc607f4dbf0`
-- Dense smoke: `BLOCKED` because the required Hugging Face download escalation was rejected after this Codex session reached its approval/usage limit.
-- Hybrid smoke/full: `BLOCKED` because no pretrained dense candidate artifact exists.
-- Candidate contract and final comparison: `BLOCKED`; no dense or hybrid metrics were fabricated.
-- Git commit for current M2 changes: `BLOCKED` by the same approval/usage limit.
+- Command status: `SUCCESS`
+- Evidence status: integration verification only (`purpose = integration_verification`, 100 queries/split)
+- Run artifact: `artifacts/runs/20260703T235155190737Z-retrieval_official_sample_dense-5810ea72`
+- Dense model: `sentence-transformers/multi-qa-MiniLM-L6-cos-v1` @ revision `b207367332321f8e44f96e224ef15bc607f4dbf0`, `fine_tuned = false`
+- Embedding dimension: 384; device: cpu; fields: title + description + brand
+- Index: `IndexIVFFlat` (nlist 128, nprobe 32), 18,190 products; FAISS index and normalized
+  embedding memmap persisted and reloadable (`build_seconds = 0` on cache reload)
+- Candidate schema: `query_key, product_key, split, method, score, rank`; annotated with
+  `esci_label, relevance_grade, judgment_status` (judged 2,389 / unjudged 62,611; unjudged never relabeled)
+- MPS encode path verified separately (384-dim, unit-normalized)
+- macOS OpenMP segfault in faiss IVF training fixed by ADR-007
+- Interpretation: plumbing verified end to end; these metrics are not promoted to scientific results.
+
+## M2C hybrid / candidate contract / final comparison
+
+- Status: pending execution now that clean BM25 and dense-smoke artifacts exist; no dense or
+  hybrid metrics are fabricated until the commands succeed.

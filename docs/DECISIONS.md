@@ -41,3 +41,14 @@
 - **Decision:** persist normalized embeddings and a FAISS inner-product index.
 - **Reason:** the model is explicitly designed for semantic search, has a compact 384-dimensional
   representation, and supports CPU, CUDA, and Apple MPS encoding paths.
+
+## ADR-007: Pin faiss to one OpenMP thread on macOS
+
+- **Decision:** in the dense build path, call `faiss.omp_set_num_threads(1)` when
+  `sys.platform == "darwin"`.
+- **Reason:** PyTorch and faiss-cpu each bundle their own OpenMP runtime. On macOS the two
+  runtimes collide and segfault (exit 139) inside faiss IVF k-means training once PyTorch's
+  runtime is already initialized. Single-thread faiss avoids the crash; empirically, moderate
+  thread counts deadlock. Retrieval runs one query per FAISS search call in a Python loop, so
+  the thread limit changes neither results nor the per-query latency measurement path. The guard
+  is macOS-only so Linux/CUDA hosts keep default faiss parallelism.

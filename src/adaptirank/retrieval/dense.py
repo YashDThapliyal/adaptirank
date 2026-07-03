@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import time
 from importlib import import_module
 from pathlib import Path
@@ -87,6 +88,13 @@ class DenseRetriever(Retriever):
         # initialization on macOS. The model is also required for cached-index query encoding.
         self._load_model()
         faiss: Any = import_module("faiss")
+        if sys.platform == "darwin":
+            # PyTorch and faiss-cpu each bundle their own OpenMP runtime. On macOS the two
+            # collide and segfault inside faiss IVF k-means training once torch's runtime is
+            # already initialized. Pinning faiss to a single OpenMP thread avoids the
+            # duplicate-runtime crash; moderate thread counts deadlock. Query search runs one
+            # query at a time in a Python loop, so this does not change retrieval results.
+            faiss.omp_set_num_threads(1)
         artifact_dir.mkdir(parents=True, exist_ok=True)
         embeddings_path = artifact_dir / "product_embeddings.npy"
         keys_path = artifact_dir / "product_keys.parquet"
