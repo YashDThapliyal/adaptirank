@@ -6,7 +6,7 @@
 - [x] M1.5 full US Task 1 benchmark: uncapped processing and all scientific-eligibility gates passed.
 - [ ] M1 explicit US large variant: `NOT_RUN`.
 - [x] M2 retrieval foundation and shared judged-aware evaluation/candidate contract.
-- [~] M2A BM25 retrieval: fixture, official-sample, and full benchmark commands passed; clean-commit rerun pending.
+- [x] M2A BM25 retrieval: fixture, official-sample, and full benchmark passed; canonical clean-provenance rerun promoted (`git_dirty=false`, run `...-e8eb8aac`).
 - [!] M2B pretrained dense retrieval: implementation/tests complete; pinned model download blocked by session approval limit.
 - [!] M2C weighted and reciprocal-rank hybrid retrieval: unit-tested; smoke blocked until dense artifacts exist.
 - [!] M2 full scientific benchmark comparison and failure analysis: BM25 artifacts exist; dense/hybrid blocked.

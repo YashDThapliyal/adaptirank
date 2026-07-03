@@ -65,26 +65,47 @@ its artifact run directory.
 - Selected fields on validation: title + description + brand
 - Interpretation: smoke evidence only; these metrics are not promoted to scientific results.
 
-## M2A full BM25 benchmark
+## M2A full BM25 benchmark (canonical, clean provenance)
 
 - Command status: `SUCCESS`
-- Evidence status: `PARTIAL` because the run correctly recorded `git_dirty: true`
-- Run artifact: `artifacts/runs/20260703T231346458330Z-retrieval_full_scientific_bm25-f3a3c0e8`
-- Dataset fingerprint: `dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667`
-- Validation-selected fields: title only
+- Evidence status: `CANONICAL` — clean-provenance rerun of `make retrieval-full-bm25`
+- Run artifact: `artifacts/runs/20260703T233135889680Z-retrieval_full_scientific_bm25-e8eb8aac`
+- Provenance: `git_commit = 9cd251f11bc35bd8fb80e036feacf581af43d203`, `git_dirty = false`,
+  `status = SUCCESS`, `seed = 42`, index `cache_reused = false` (index built fresh under this commit)
+- Dataset fingerprint: `dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667` (matches M1.5 canonical)
+- Validation-selected fields: title only (title beat title+description and title+description+brand on
+  validation `recall_primary_100` then `ndcg_10`)
 - Index: `artifacts/retrieval/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/full_scientific/bm25/shared_index/index`
-- Selected candidates: `artifacts/retrieval/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/full_scientific/bm25/title/candidates.parquet`
-- Per-query metrics: `artifacts/retrieval/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/full_scientific/bm25/title/per_query_metrics.parquet`
-- Failure cases: `artifacts/retrieval/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/full_scientific/bm25/title/failure_cases.json`
-- Index build time: 9.605210 seconds
-- Index size: 364,014,122 bytes
-- Test primary Recall E+S @10/@50/@100/@500: 0.151277 / 0.298436 / 0.368323 / 0.527609
-- Test sensitivity Recall E+S+C @10/@50/@100/@500: 0.151877 / 0.299855 / 0.370083 / 0.528654
-- Test condensed MRR: 0.848492
-- Test condensed NDCG@5/@10: 0.641366 / 0.609680
-- Query latency p50/p95: 0.372208 / 2.669017 ms
-- Throughput: 1,365.193150 queries/second
-- Interpretation: measured on the eligible full dataset, but not a final claim until repeated from a clean M2 commit.
+- Selected candidates: `.../full_scientific/bm25/selected_candidates.parquet`
+- Per-query metrics: `.../full_scientific/bm25/title/per_query_metrics.parquet`
+- Failure cases: `.../full_scientific/bm25/title/failure_cases.json`
+- Index engine: tantivy v0.26.0 (index_format v7), BM25 scoring
+- Index build time: 7.226101 seconds
+- Index size: 377,349,132 bytes
+- Document count: 1,215,854
+- Test primary Recall E+S @10/@50/@100/@500: 0.151241 / 0.298310 / 0.368280 / 0.527724
+- Test sensitivity Recall E+S+C @10/@50/@100/@500: 0.151815 / 0.299758 / 0.370045 / 0.528732
+- Test condensed MRR: 0.848895
+- Test condensed NDCG@5/@10: 0.641324 / 0.609754
+- Query latency p50/p95: 0.455084 / 2.884825 ms
+- Throughput: 1,200.394054 queries/second
+- Interpretation: measured on the eligible full dataset from a clean commit; this is the promoted
+  final BM25 evidence. Latency is wall-clock and not deterministic across machines.
+
+### Clean-vs-dirty comparison
+
+- Prior dirty run: `artifacts/runs/20260703T231346458330Z-retrieval_full_scientific_bm25-f3a3c0e8`
+  (`git_commit = 5f0049d`, `git_dirty = true`), now demoted to superseded evidence.
+- Selected ablation is identical (title only) in both runs.
+- Quality deltas are at the ~1e-4 level, e.g. MRR 0.848895 (clean) vs 0.848492 (dirty),
+  Recall E+S @100 0.368280 vs 0.368323, Recall E+S @500 0.527724 vs 0.527609.
+- Cause: BM25 score-tie handling is sensitive to tantivy's internal segment layout, which differs
+  between a fresh build and a reused index. This is index-build non-determinism among equal-scoring
+  documents, not a change in retrieval or metric logic. The magnitude is negligible and does not
+  change the title-only selection or any ranking of methods.
+- A first clean-commit rerun that reused the dirty index (`aa8c47d3`) reproduced the dirty numbers
+  bit-for-bit, confirming the retrieval/eval code is deterministic given a fixed index; the canonical
+  run above was then rebuilt from scratch to also give the index clean provenance.
 
 ## M2B/M2C blocked evidence
 
