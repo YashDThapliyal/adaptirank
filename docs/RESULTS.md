@@ -1,6 +1,6 @@
 # Results Ledger
 
-Scientific results: `NOT_RUN`.
+Retrieval performance results: `NOT_RUN`.
 
 Engineering verification entries will be added only after a command succeeds and will point to
 its artifact run directory.
@@ -37,7 +37,21 @@ its artifact run directory.
 
 ## Explicitly not run
 
-- Full uncapped US Task 1 benchmark: `NOT_RUN`
 - Explicit US large variant: `NOT_RUN`
 - Hosted GitHub Actions: `NOT_RUN`
 - E1-E9 scientific experiments: `NOT_RUN`
+
+## M1.5 full canonical ESCI benchmark
+
+- Status: `SUCCESS`
+- Scientific eligibility: `true`
+- Scope: uncapped `small_version == 1`, `product_locale == "us"`
+- Run artifact: `artifacts/runs/20260703T230014349802Z-esci_small_us_benchmark-7795ca57`
+- Dataset artifact: `artifacts/datasets/esci/processed/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667`
+- Dataset fingerprint: `dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667`
+- Counts: 1,215,854 products, 29,844 query groups, 601,354 judgments
+- Splits: 18,799 train, 2,089 validation, 8,956 preserved official test query groups
+- Query overlap: zero for train/validation, train/test, and validation/test
+- Catalog coverage: 1.0
+- Source provenance: complete for Amazon commit `7916cdf6ab75a462e77f20ab40428a10923998d5`
+- Interpretation: this validates the benchmark dataset contract; it is not a retrieval-performance claim.

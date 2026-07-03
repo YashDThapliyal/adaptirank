@@ -23,5 +23,10 @@ The verified official source revision is
 source bytes, then processes 300 source-train and 100 source-test query groups. This configuration
 is integration evidence only; full benchmark claims require `configs/data/esci_small_us.yaml`.
 
+The uncapped canonical build completed with dataset fingerprint
+`dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667`. All explicit schema,
+key, label, catalog-coverage, provenance, source-test-preservation, and zero-overlap gates passed;
+the dataset report therefore records `scientific_eligibility: true`.
+
 Open Bandit, Criteo, and KuaiRand/KuaiRec remain `NOT_RUN` external tracks and are never merged
 into a fabricated log.
