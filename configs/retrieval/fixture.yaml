@@ -1,0 +1,35 @@
+run:
+  experiment: retrieval_fixture
+  purpose: fixture_smoke
+  seed: 42
+  artifacts_dir: artifacts
+dataset_dir: artifacts/datasets/esci/processed/ece4b9c2ca3b74b773f58d0b8d617ba48ff79e03f148673d3f51641b8cee89d7
+dataset_fingerprint: ece4b9c2ca3b74b773f58d0b8d617ba48ff79e03f148673d3f51641b8cee89d7
+output_dir: artifacts/retrieval
+artifact_name: fixture
+evaluation_splits: [validation, test]
+top_k: [10, 50, 100, 500]
+max_queries_per_split: null
+bm25:
+  field_sets:
+    - name: title
+      fields: [title]
+    - name: title_description
+      fields: [title, description]
+    - name: title_description_brand
+      fields: [title, description, brand]
+  writer_heap_bytes: 50000000
+dense:
+  model_name: sentence-transformers/multi-qa-MiniLM-L6-cos-v1
+  model_revision: b207367332321f8e44f96e224ef15bc607f4dbf0
+  fields: [title, description, brand]
+  batch_size: 16
+  outer_batch_size: 64
+  device: cpu
+  nlist: 16
+  nprobe: 8
+  training_sample_size: 1000
+hybrid:
+  alpha_grid: [0.0, 0.25, 0.5, 0.75, 1.0]
+  rrf_k: 60
+

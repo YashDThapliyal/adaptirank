@@ -46,6 +46,24 @@ Raw `E/S/C/I` labels and source split/version flags are preserved. Numeric relev
 derived fields. Products without a judgment for a query are `unjudged`: their label and grade
 remain null and must never be converted to `I`/0.
 
+## M2 retrieval commands
+
+```bash
+make retrieval-fixture-bm25
+make retrieval-smoke-bm25
+make retrieval-smoke-dense
+make retrieval-smoke-hybrid
+make retrieval-full-bm25
+make retrieval-full-dense
+make retrieval-full-hybrid
+```
+
+BM25 uses a persistent Tantivy index and evaluates title, title+description, and
+title+description+brand. Dense retrieval uses the pinned, unfine-tuned
+`sentence-transformers/multi-qa-MiniLM-L6-cos-v1` model with cached embeddings and FAISS. Hybrid
+parameters are selected on validation only. See `docs/RESULTS.md` for exact run status; missing
+external model artifacts are reported as `BLOCKED`, never replaced with invented metrics.
+
 ## Architecture status
 
 The package reserves independent namespaces for retrieval, ranking, prediction, simulation,

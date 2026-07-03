@@ -1,0 +1,35 @@
+run:
+  experiment: retrieval_official_sample
+  purpose: integration_verification
+  seed: 42
+  artifacts_dir: artifacts
+dataset_dir: artifacts/datasets/esci/processed/fec41b6515559c1df4db565d1e526175c64a33a1a8b73d5a645c71ed2fd1bd09
+dataset_fingerprint: fec41b6515559c1df4db565d1e526175c64a33a1a8b73d5a645c71ed2fd1bd09
+output_dir: artifacts/retrieval
+artifact_name: official_sample_smoke
+evaluation_splits: [validation, test]
+top_k: [10, 50, 100, 500]
+max_queries_per_split: 100
+bm25:
+  field_sets:
+    - name: title
+      fields: [title]
+    - name: title_description
+      fields: [title, description]
+    - name: title_description_brand
+      fields: [title, description, brand]
+  writer_heap_bytes: 128000000
+dense:
+  model_name: sentence-transformers/multi-qa-MiniLM-L6-cos-v1
+  model_revision: b207367332321f8e44f96e224ef15bc607f4dbf0
+  fields: [title, description, brand]
+  batch_size: 128
+  outer_batch_size: 1024
+  device: cpu
+  nlist: 128
+  nprobe: 32
+  training_sample_size: 10000
+hybrid:
+  alpha_grid: [0.0, 0.25, 0.5, 0.75, 1.0]
+  rrf_k: 60
+
