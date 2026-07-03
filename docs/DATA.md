@@ -18,5 +18,10 @@ Official provenance records the pinned Amazon commit, exact immutable URL, obser
 locally observed SHA-256. Local hashes are integrity fingerprints, not authoritative checksums
 unless independently published expected values are available and matched.
 
+The verified official source revision is
+`7916cdf6ab75a462e77f20ab40428a10923998d5`. The `official-sample` integration downloads all
+source bytes, then processes 300 source-train and 100 source-test query groups. This configuration
+is integration evidence only; full benchmark claims require `configs/data/esci_small_us.yaml`.
+
 Open Bandit, Criteo, and KuaiRand/KuaiRec remain `NOT_RUN` external tracks and are never merged
 into a fabricated log.
