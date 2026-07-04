@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 import types
 from pathlib import Path
 
@@ -9,7 +10,10 @@ import pytest
 
 
 def _module() -> types.ModuleType:
-    path = Path(__file__).resolve().parents[2] / "scripts" / "analyze_m3_ce_findings.py"
+    scripts_dir = Path(__file__).resolve().parents[2] / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    path = scripts_dir / "analyze_m3_ce_findings.py"
     spec = importlib.util.spec_from_file_location("analyze_m3_ce_findings", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -74,3 +78,38 @@ def test_count_ordering_violations_checks_product_key_ties() -> None:
 
     assert correct_violations == 0
     assert swapped_tie_violations == 2
+
+
+def test_delta_returns_none_for_missing_metric_values() -> None:
+    mod = _module()
+    rows = {
+        "ce": {"ndcg_10": 0.7, "mrr": None},
+        "base": {"ndcg_10": 0.5, "mrr": 0.4},
+    }
+
+    assert mod.delta(rows, "ce", "base", "ndcg_10") == pytest.approx(0.2)
+    assert mod.delta(rows, "ce", "base", "mrr") is None
+
+
+def test_label_expr_preserves_esci_labels_and_marks_unjudged() -> None:
+    mod = _module()
+    frame = pl.DataFrame({"esci_label": ["E", "S", "C", "I", None]})
+
+    labels = frame.with_columns(mod.label_expr())["label"].to_list()
+
+    assert labels == ["E", "S", "C", "I", "UNJUDGED"]
+
+
+def test_slice_notes_handles_empty_rows() -> None:
+    mod = _module()
+    notes = mod.slice_notes(
+        {
+            "query_length": {
+                "split": "test",
+                "rows": [],
+                "pointwise_beats_lambdamart_slices": [],
+            }
+        }
+    )
+
+    assert notes == "- query_length: no slice rows available."

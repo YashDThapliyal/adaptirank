@@ -14,7 +14,7 @@ Interpretation: Judged ranking metrics and raw-depth recall answer different que
 
 ## 3 Canonical Artifact Identifiers/Fingerprints Relevant To M3
 
-Observed result: dataset fingerprint `dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667`. CE root `/Users/yash/Documents/AdaptiRank/artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder`. Analysis root `/Users/yash/Documents/AdaptiRank/artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis`. Pair union SHA `16a43b01f0ba159e5950c1fe7d4363b6c05d7b0c9ffe6c581272379ef9c8488d`; scores SHA `923960c5caeef63b33738cb5b4b9ea6cf2163a3a51676359f77dc68a291dd442`.
+Observed result: dataset fingerprint `dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667`. CE root `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder`. Analysis root `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis`. Pair union SHA `16a43b01f0ba159e5950c1fe7d4363b6c05d7b0c9ffe6c581272379ef9c8488d`; scores SHA `923960c5caeef63b33738cb5b4b9ea6cf2163a3a51676359f77dc68a291dd442`.
 
 Interpretation: Imported CE score artifacts were not modified and CE inference was not rerun.
 
@@ -94,7 +94,7 @@ Interpretation: Promotions alone do not imply improved aggregate ordering.
 
 ## 12 Query-Slice Findings
 
-Observed result: low lexical overlap H->CE dNDCG@10 = -0.140717 and H->L->CE dNDCG@10 = -0.195133; high disagreement H->CE dNDCG@10 = -0.138625 and H->L->CE dNDCG@10 = -0.224976. Navigational slice is NOT_IMPLEMENTED.
+Observed result: see slice-by-slice deltas below. Navigational slice is NOT_IMPLEMENTED.
 
 - query_length: worst H->CE short_1_2 (-0.107428); worst H->L->CE short_1_2 (-0.186257).
 - lexical_overlap: worst H->CE low (-0.140717); worst H->L->CE low (-0.195133).
@@ -111,13 +111,13 @@ Interpretation: This is hardware-mixed and stage-mixed, not a serving benchmark.
 
 ## 14 Representative Wins
 
-Observed result: see `/Users/yash/Documents/AdaptiRank/artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/representative_examples.md` sections `ce_a_largest_wins_vs_hybrid` and `ce_b_largest_wins_vs_lambdamart`.
+Observed result: see `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/representative_examples.md` sections `ce_a_largest_wins_vs_hybrid` and `ce_b_largest_wins_vs_lambdamart`.
 
 Interpretation: These are illustrative examples, not aggregate proof.
 
 ## 15 Representative Failures
 
-Observed result: see `/Users/yash/Documents/AdaptiRank/artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/representative_examples.md` sections `ce_a_largest_losses_vs_hybrid`, `ce_b_largest_losses_vs_lambdamart`, `high_scoring_I`, `low_scoring_E`, `S_C_inversion`, and `keyword_compatibility_or_product_type_mismatch`.
+Observed result: see `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/representative_examples.md` sections `ce_a_largest_losses_vs_hybrid`, `ce_b_largest_losses_vs_lambdamart`, `high_scoring_I`, `low_scoring_E`, `S_C_inversion`, and `keyword_compatibility_or_product_type_mismatch`.
 
 Interpretation: Failures are consistent with objective/domain mismatch and product-type confusion, not causal proof.
 
@@ -141,7 +141,7 @@ Interpretation: These are follow-ups, not requirements for this closeout.
 
 ## 19 Exact Paths To Supporting Artifacts/Reports
 
-Observed result: final table `/Users/yash/Documents/AdaptiRank/artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/final_comparison_table.md`; audit `/Users/yash/Documents/AdaptiRank/artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/ce_correctness_audit.json`; score by label `/Users/yash/Documents/AdaptiRank/artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/score_distribution_by_label.md`; displacement `/Users/yash/Documents/AdaptiRank/artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/rank_displacement_summary.md`; slices `/Users/yash/Documents/AdaptiRank/artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/query_slice_summary.md`; quality latency `/Users/yash/Documents/AdaptiRank/artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/quality_latency_summary.md`; representative examples `/Users/yash/Documents/AdaptiRank/artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/representative_examples.md`; source JSON `/Users/yash/Documents/AdaptiRank/artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/m3_findings_source.json`.
+Observed result: final table `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/final_comparison_table.md`; audit `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/ce_correctness_audit.json`; score by label `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/score_distribution_by_label.md`; displacement `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/rank_displacement_summary.md`; slices `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/query_slice_summary.md`; quality latency `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/quality_latency_summary.md`; representative examples `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/representative_examples.md`; source JSON `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/m3_findings_source.json`.
 
 Full final comparison:
 

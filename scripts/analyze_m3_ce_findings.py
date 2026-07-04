@@ -12,6 +12,7 @@ from typing import Any, cast
 
 import numpy as np
 import polars as pl
+from m3_findings_doc import expanded_findings_doc
 
 from adaptirank.common.paths import project_root
 from adaptirank.data.provenance import sha256_file
@@ -64,8 +65,6 @@ def read_json(path: Path) -> dict[str, Any]:
     data: Any = json.loads(path.read_text())
     if not isinstance(data, dict):
         raise ValueError(f"Expected JSON object in {path}")
-    if not all(isinstance(key, str) for key in data):
-        raise ValueError(f"Expected string JSON object keys in {path}")
     return cast("dict[str, Any]", data)
 
 
@@ -764,7 +763,8 @@ def score_distribution_by_label(
         .to_dicts()
     )
     mapped = {row["label"]: clean(row) for row in rows}
-    return {label: mapped[label] for label in LABELS}
+    empty_row = {"count": 0, "mean": None, "median": None, "p25": None, "p75": None}
+    return {label: mapped.get(label, {"label": label, **empty_row}) for label in LABELS}
 
 
 def score_distribution_by_label_md(summary: dict[str, dict[str, Any]]) -> str:
@@ -1010,8 +1010,17 @@ def row_map(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {row["method_key"]: row for row in rows}
 
 
-def delta(rows: dict[str, dict[str, Any]], method: str, base: str, metric: str) -> float:
-    return float(rows[method][metric]) - float(rows[base][metric])
+def delta(rows: dict[str, dict[str, Any]], method: str, base: str, metric: str) -> float | None:
+    method_value = rows[method].get(metric)
+    base_value = rows[base].get(metric)
+    if method_value is None or base_value is None:
+        return None
+    return float(method_value) - float(base_value)
+
+
+def _delta_for_min(row: dict[str, Any], key: str) -> float:
+    value = row.get(key)
+    return float("inf") if value is None else float(value)
 
 
 def slice_notes(summary: dict[str, Any]) -> str:
@@ -1020,151 +1029,20 @@ def slice_notes(summary: dict[str, Any]) -> str:
         if payload.get("status"):
             notes.append(f"- {family}: {payload['status']} ({payload['reason']})")
             continue
+        if not payload.get("rows"):
+            notes.append(f"- {family}: no slice rows available.")
+            continue
         beats = ", ".join(payload["pointwise_beats_lambdamart_slices"]) or "none"
-        worst_a = min(
-            payload["rows"],
-            key=lambda row: row["hybrid_to_cross_encoder_vs_weighted_hybrid__ndcg_10_delta"],
-        )
-        worst_b = min(
-            payload["rows"],
-            key=lambda row: row[
-                "hybrid_to_lambdamart_to_cross_encoder_vs_lambdamart__ndcg_10_delta"
-            ],
-        )
+        ce_a_key = "hybrid_to_cross_encoder_vs_weighted_hybrid__ndcg_10_delta"
+        ce_b_key = "hybrid_to_lambdamart_to_cross_encoder_vs_lambdamart__ndcg_10_delta"
+        worst_a = min(payload["rows"], key=lambda row: _delta_for_min(row, ce_a_key))
+        worst_b = min(payload["rows"], key=lambda row: _delta_for_min(row, ce_b_key))
         notes.append(
             f"- {family}: Pointwise beats LambdaMART in {beats}; worst Hybrid->CE "
-            f"dNDCG@10 is {worst_a['slice']} "
-            f"({worst_a['hybrid_to_cross_encoder_vs_weighted_hybrid__ndcg_10_delta']:.6f}); "
-            f"worst H->L->CE dNDCG@10 is {worst_b['slice']} "
-            f"({worst_b['hybrid_to_lambdamart_to_cross_encoder_vs_lambdamart__ndcg_10_delta']:.6f})."
+            f"dNDCG@10 is {worst_a['slice']} ({fmt(worst_a[ce_a_key])}); "
+            f"worst H->L->CE dNDCG@10 is {worst_b['slice']} ({fmt(worst_b[ce_b_key])})."
         )
     return "\n".join(notes)
-
-
-def findings_doc(
-    p: dict[str, Path],
-    source: dict[str, Any],
-    rows: list[dict[str, Any]],
-    disp: dict[str, Any],
-    slices: dict[str, Any],
-    latency: dict[str, Any],
-    ablate: dict[str, Any],
-) -> str:
-    mapped = row_map(rows)
-    score_dist = source["score_distribution"]["global"]
-    audit_summary = source["audit"]
-    table_text = "\n".join(final_table_md(rows).splitlines()[2:])
-    ce_a_delta = delta(mapped, "hybrid_to_cross_encoder", "weighted_hybrid", "ndcg_10")
-    ce_b_delta = delta(
-        mapped,
-        "hybrid_to_lambdamart_to_cross_encoder",
-        "lambdamart",
-        "ndcg_10",
-    )
-    lambda_delta = delta(mapped, "lambdamart", "weighted_hybrid", "ndcg_10")
-    pointwise_delta = delta(mapped, "pointwise", "lambdamart", "ndcg_10")
-    parts = [
-        (
-            "Purpose And Contract",
-            "Observed result: This is an artifact-only M3 CE closeout. Imported CE score "
-            "artifacts were not modified, CE inference was not rerun, and the CE evaluation "
-            "run was not overwritten.\n\nInterpretation: This is analysis, not a new run.",
-        ),
-        (
-            "Artifact Lineage",
-            f"Observed result: dataset fingerprint `{FP}`. CE root `{p['ce']}`. Evaluation "
-            f"root `{p['eval']}`. Analysis root `{p['analysis']}`. Learned root "
-            f"`{p['learned']}`. Retrieval root `{p['retrieval']}`. Dataset root "
-            f"`{p['dataset']}`. Pair union SHA `{source['coverage']['pair_union_sha256']}`; "
-            f"scores SHA `{source['coverage']['scores_sha256']}`.\n\n"
-            "Interpretation: Reported values are tied to fixed local artifacts.",
-        ),
-        (
-            "Evaluation Policy",
-            "Observed result: final aggregate values and query slices use the test split. "
-            "UNJUDGED rows remain separate from ESCI I.\n\nInterpretation: judged-aware "
-            "NDCG/MRR and raw-depth recall answer different questions.",
-        ),
-        (
-            "Final Comparison",
-            f"Observed result:\n\n{table_text}\n\nInterpretation: LambdaMART is best by "
-            "test NDCG@10; both CE cascades trail their predecessors.",
-        ),
-        (
-            "Main Metric Deltas",
-            f"Observed result: Hybrid->CE vs Weighted Hybrid dNDCG@10 = {ce_a_delta:.6f}. "
-            f"Hybrid->LambdaMART->CE vs LambdaMART dNDCG@10 = {ce_b_delta:.6f}. "
-            f"LambdaMART vs Weighted Hybrid dNDCG@10 = {lambda_delta:.6f}. Pointwise vs "
-            f"LambdaMART dNDCG@10 = {pointwise_delta:.6f}.\n\nInterpretation: the generic "
-            "CE is a clear regression in this cascade configuration.",
-        ),
-        (
-            "Correctness Audit",
-            f"Observed result: audit `{audit_summary['status']}`. Missing scores "
-            f"{audit_summary['pair_equality']['missing_scores_for_union_pairs']}; invalid "
-            f"scores {audit_summary['pair_equality']['invalid_score_values']}; membership "
-            f"violations A/B {audit_summary['membership']['ce_a_non_hybrid_top_100_rows']}/"
-            f"{audit_summary['membership']['ce_b_non_lambdamart_top_50_rows']}. Ordering "
-            "checks score DESC and product_key ASC tie order; violations A/B "
-            f"{audit_summary['ordering']['ce_a_score_desc_product_key_asc_violations']}/"
-            f"{audit_summary['ordering']['ce_b_score_desc_product_key_asc_violations']}.\n\n"
-            "Interpretation: negative CE results are not explained by import or ordering bugs.",
-        ),
-        (
-            "Score Distribution",
-            f"Observed result: count {score_dist['count']}; mean {score_dist['mean']:.6f}; "
-            f"p50 {score_dist['quantiles']['p50']:.6f}; p95 "
-            f"{score_dist['quantiles']['p95']:.6f}; min {score_dist['min']:.6f}; max "
-            f"{score_dist['max']:.6f}.\n\nInterpretation: score magnitude does not prove "
-            "alignment with ESCI grades.",
-        ),
-        (
-            "Rank Movement",
-            f"Observed result: CE-A E mean displacement "
-            f"{disp['ce_a_vs_hybrid']['by_label']['E']['mean']:.3f}; CE-B E mean "
-            f"displacement {disp['ce_b_vs_lambdamart']['by_label']['E']['mean']:.3f}. "
-            "Negative means promotion.\n\nInterpretation: promotions do not improve "
-            "aggregate quality.",
-        ),
-        (
-            "Query Slice Findings",
-            "Observed result: query-slice outputs are "
-            f"`{p['analysis'] / 'query_slice_summary.json'}` "
-            f"and `{p['analysis'] / 'query_slice_summary.md'}`.\n\n{slice_notes(slices)}\n\n"
-            "Interpretation: slice tables diagnose failures; they are not tuning evidence.",
-        ),
-        (
-            "Quality And Latency",
-            f"Observed result: CE batch throughput is "
-            f"{source['scoring_stats']['pairs_per_second']:.3f} pairs/sec on "
-            f"{latency['methods']['hybrid_to_cross_encoder']['hardware']}; online CE "
-            f"p50/p95 latency is NA. {latency['caveat']}\n\nInterpretation: this is "
-            "hardware-mixed and stage-mixed, not a serving benchmark.",
-        ),
-        (
-            "Negative Findings",
-            "Observed result: both CE cascades reduce test NDCG@10 versus immediate "
-            "predecessors; CE-B is worse than CE-A.\n\nInterpretation: the pretrained CE "
-            "is not a drop-in M3 improvement.",
-        ),
-        (
-            "Ablation Decision",
-            f"Observed result: CE-score feature ablation is `{ablate['status']}`. Full "
-            f"500-candidate coverage is {ablate['full_500_feature_matrix_complete']}. "
-            f"Existing cascade-depth coverage is "
-            f"{ablate['no_new_inference_needed_for_existing_cascades']}.\n\n"
-            f"Interpretation: {ablate['recommendation']}",
-        ),
-        (
-            "Caveats And Open Questions",
-            "Observed result: no M4 simulator, bandit, OPE, or RL work is included. The CE "
-            "model is fixed and not e-commerce-tuned. Open questions: would ESCI fine-tuning "
-            "or top-depth CE features help, and where are failures concentrated?",
-        ),
-    ]
-    return "# M3 Cross-Encoder Findings\n\n" + "\n\n".join(
-        f"## {heading}\n\n{text}" for heading, text in parts
-    )
 
 
 def main() -> None:
@@ -1229,8 +1107,6 @@ def main() -> None:
         "representative_examples": representative,
     }
     write_json(p["analysis"] / "m3_findings_source.json", source)
-    from m3_findings_doc import expanded_findings_doc
-
     write_text(
         p["docs"] / "m3_findings.md",
         expanded_findings_doc(p, source, rows),
