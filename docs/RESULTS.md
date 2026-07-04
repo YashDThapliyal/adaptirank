@@ -211,7 +211,7 @@ its artifact run directory.
 - CE evaluation run: `artifacts/runs/20260704T212742425417Z-ranking_m3_ce_evaluate-e495999c` (`SUCCESS`, canonical clean-provenance evidence, `git_commit = c7530b25317708a699c8d38a01ce968f0ddea0b1`, `git_dirty = false`)
 - Historical CE evaluation run: `artifacts/runs/20260704T194646524675Z-ranking_m3_ce_evaluate-90a41912` (`SUCCESS`, historical evidence, dirty due notebook state)
 - Analysis output: `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/`
-- Analysis run metadata: `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/run_metadata.json` (`git_commit = c7530b25317708a699c8d38a01ce968f0ddea0b1`, `git_dirty = false`)
+- Analysis run metadata: `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/run_metadata.json` (`git_commit = 432323a3587a5ce3805c0341228fe6ead1003ac0`, `git_dirty = false`)
 - CE import facts: 3,156,056 union rows and 3,156,056 score rows; union SHA `16a43b01f0ba159e5950c1fe7d4363b6c05d7b0c9ffe6c581272379ef9c8488d`; scores SHA `923960c5caeef63b33738cb5b4b9ea6cf2163a3a51676359f77dc68a291dd442`; completeness `PASS`.
 - CE audit: `PASS`; missing scores 0, invalid scores 0, ordering violations 0, membership violations 0.
 - Judgment policy: `UNJUDGED` remains distinct from `IRRELEVANT`; unjudged candidates were not relabeled as negatives.
