@@ -1,0 +1,22 @@
+run:
+  experiment: ranking_m3
+  purpose: m3_cross_encoder_baseline
+  seed: 42
+  artifacts_dir: artifacts
+dataset_dir: artifacts/datasets/esci/processed/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667
+dataset_fingerprint: dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667
+retrieval_output_dir: artifacts/retrieval
+retrieval_artifact_name: m3_three_split
+output_dir: artifacts/ranking
+artifact_name: m3
+rank_column: hybrid_rank
+top_m: 100
+block_queries: 512
+max_queries_per_split: null
+cross_encoder:
+  model_name: cross-encoder/ms-marco-MiniLM-L12-v2
+  model_revision: 7b0235231ca2674cb8ca8f022859a6eba2b1c968
+  fields: [title, description, brand]
+  device: auto
+  batch_size: 64
+  max_length: 512

@@ -1,1 +1,1 @@
-"""Reserved ranking namespace; no M0-M1 algorithms."""
+"""M3 learning-to-rank package."""

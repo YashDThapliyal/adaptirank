@@ -5,7 +5,8 @@ export UV_CACHE_DIR
 .PHONY: setup lint typecheck test smoke ci lock official-sample esci-benchmark esci-large \
 	retrieval-fixture-bm25 retrieval-smoke-bm25 retrieval-smoke-dense retrieval-smoke-hybrid \
 	retrieval-full-bm25 retrieval-full-dense retrieval-full-hybrid \
-	retrieval-m3-bm25 retrieval-m3-dense retrieval-m3-hybrid
+	retrieval-m3-bm25 retrieval-m3-dense retrieval-m3-hybrid \
+	rank-smoke-cross-encoder rank-m3-cross-encoder
 
 setup:
 	$(UV) sync --frozen --dev
@@ -71,3 +72,11 @@ retrieval-m3-dense:
 
 retrieval-m3-hybrid:
 	$(UV) run python scripts/run_retrieval.py --config configs/retrieval/m3_three_split.yaml --method hybrid
+
+# M3 cross-encoder reranking scorer. Smoke runs on CPU over the official-sample contract;
+# the full M3 run scores top-100 for all three splits and uses CUDA (Colab).
+rank-smoke-cross-encoder:
+	$(UV) run python scripts/score_cross_encoder.py --config configs/ranking/cross_encoder_smoke.yaml
+
+rank-m3-cross-encoder:
+	$(UV) run python scripts/score_cross_encoder.py --config configs/ranking/cross_encoder_m3.yaml
