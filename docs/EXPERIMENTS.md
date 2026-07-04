@@ -25,8 +25,9 @@ Its diagnostics may validate plumbing but may not appear in final research resul
 ### CE A100 Colab protocol
 
 - Canonical entry point: `notebooks/m3_cross_encoder_a100_runall.ipynb`.
-- The notebook must clone `YashDThapliyal/adaptirank` at
-  `4f327ff86c5a50b11e850620e8b2f8d74311721c`, verify the clean checkout, install from the
+- The notebook must clone `YashDThapliyal/adaptirank` at scoring commit
+  `eb67d8f1d8bbba14a58e9a0a12fd787b5efaa01d` (`eb67d8f`). Drive-staged CE inputs were built at `4f327ff86c5a50b11e850620e8b2f8d74311721c`
+  (`4f327ff`). Verify the clean checkout, install from the
   lockfile, and use `adaptirank.ranking.ce_workflow` for all gates.
 - Inputs are Drive-staged: `MyDrive/adaptirank/m3_ce_a100_input.tar.gz` with SHA-256
   `a79bb8ad98b2cdbfb56b6f6680c95ce87ef1dd792a16ac91d95fec563ee67f5f`, plus

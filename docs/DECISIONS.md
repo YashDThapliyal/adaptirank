@@ -99,7 +99,8 @@
 - **Decision:** centralize full-run constants, SHA checks, GPU gating, union validation,
   deterministic benchmark selection, checkpoint manifests, consolidation, and final score
   verification in `adaptirank.ranking.ce_workflow`.
-- **Decision:** the notebook clones commit `4f327ff86c5a50b11e850620e8b2f8d74311721c`, verifies
+- **Decision:** the notebook clones scoring commit `eb67d8f1d8bbba14a58e9a0a12fd787b5efaa01d` (`eb67d8f`); CE union/archive
+  artifacts on Drive were built at `4f327ff86c5a50b11e850620e8b2f8d74311721c` (`4f327ff`). The notebook verifies
   `m3_ce_a100_input.tar.gz` SHA-256
   `a79bb8ad98b2cdbfb56b6f6680c95ce87ef1dd792a16ac91d95fec563ee67f5f`, and refuses to score unless
   the CE union is exactly 3,156,056 rows with SHA-256
