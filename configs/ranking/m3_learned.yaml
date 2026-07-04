@@ -1,0 +1,21 @@
+run:
+  experiment: ranking_m3_learned
+  purpose: m3_validation_selected_primary_models
+  seed: 42
+  artifacts_dir: artifacts
+dataset_dir: artifacts/datasets/esci/processed/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667
+dataset_fingerprint: dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667
+feature_dir: artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/features
+output_dir: artifacts/ranking
+artifact_name: m3_three_split
+ranking:
+  pointwise_grid:
+    - {learning_rate: 0.05, max_iter: 150, max_leaf_nodes: 15, l2_regularization: 1.0}
+    - {learning_rate: 0.05, max_iter: 200, max_leaf_nodes: 31, l2_regularization: 1.0}
+  lambdamart_grid:
+    - {learning_rate: 0.05, n_estimators: 600, num_leaves: 15, min_child_samples: 20, feature_fraction: 1.0}
+    - {learning_rate: 0.05, n_estimators: 600, num_leaves: 31, min_child_samples: 20, feature_fraction: 0.9}
+    - {learning_rate: 0.03, n_estimators: 800, num_leaves: 31, min_child_samples: 40, feature_fraction: 1.0}
+  early_stopping_rounds: 40
+  prediction_batch_size: 250000
+  latency_query_sample: 1000

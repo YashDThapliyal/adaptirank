@@ -12,6 +12,7 @@ from adaptirank.ranking.config import CrossEncoderRunConfig
 from adaptirank.ranking.cross_encoder import (
     CrossEncoderScorer,
     build_product_text,
+    score_pair_frame,
     score_top_m,
 )
 
@@ -87,6 +88,14 @@ def test_score_top_m_selects_only_top_m_per_query() -> None:
         0, named=True
     )
     assert row["cross_encoder_score"] == 4.0
+
+
+def test_score_pair_frame_accepts_explicit_union() -> None:
+    contract, queries, catalog = _fixture()
+    targets = contract.select("query_key", "product_key", "split").head(2)
+    result = score_pair_frame(targets, queries, catalog, _FakeScorer(), fields=("title",))
+    assert result.height == 2
+    assert result.select("query_key", "product_key").n_unique() == 2
 
 
 def test_score_top_m_checkpoint_resumes_without_rescoring(tmp_path: Path) -> None:

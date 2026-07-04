@@ -75,3 +75,19 @@
   dense Colab T4); RESULTS.md labels latency by hardware and defers a same-hardware latency study.
   The pinned encoder is used without fine-tuning, so device-level float differences do not affect
   the qualitative finding that untuned dense underperforms BM25 while fusion beats both.
+
+## ADR-009: M3 label isolation and primary learned-ranking policy
+
+- **Decision:** fit pointwise and LambdaMART models only on judged training rows. Preserve the
+  configured graded targets `E=3`, `S=2`, `C=1`, `I=0`; missing judgments remain null and are
+  never converted to `I` or grade 0. Score every candidate at inference time.
+- **Decision:** use train for fitting, validation for model/feature selection and early stopping,
+  and the official test split only once the selected configuration is frozen. Test labels are
+  evaluation inputs only and are never feature values or fit targets.
+- **Decision:** the primary LambdaMART model uses label-free retrieval/text features and excludes
+  cross-encoder scores. A CE-score feature is permitted only as a separately named ablation.
+- **Decision:** omit category features because the canonical catalog has 0% category coverage.
+  Brand and title features are permitted because they are observed source fields.
+- **Reason:** broad-catalog candidates are mostly unjudged; coercing unknown exposure into a
+  negative label would create fabricated supervision. Keeping CE separate also makes the learned
+  cascade and pretrained neural reranker independently interpretable.

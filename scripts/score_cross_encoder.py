@@ -31,8 +31,14 @@ from adaptirank.common.config import load_config
 from adaptirank.common.paths import project_root, resolve_project_path
 from adaptirank.common.reproducibility import seed_everything
 from adaptirank.common.run import ExperimentRun
+from adaptirank.data.provenance import sha256_file
 from adaptirank.ranking.config import CrossEncoderRunConfig
-from adaptirank.ranking.cross_encoder import CrossEncoderScorer, score_top_m, scoring_stats
+from adaptirank.ranking.cross_encoder import (
+    CrossEncoderScorer,
+    score_pair_frame,
+    score_top_m,
+    scoring_stats,
+)
 from adaptirank.retrieval.evaluate import write_json
 
 
@@ -94,24 +100,53 @@ def main() -> None:
         artifacts_dir=config.run.artifacts_dir,
     ) as run:
         started = time.perf_counter()
-        scores = score_top_m(
-            contract,
-            queries,
-            catalog,
-            scorer,
-            fields=config.cross_encoder.fields,
-            top_m=config.top_m,
-            rank_column=config.rank_column,
-            checkpoint_path=checkpoint,
-            block_queries=config.block_queries,
-        )
+        if config.pair_artifact is None:
+            scores = score_top_m(
+                contract,
+                queries,
+                catalog,
+                scorer,
+                fields=config.cross_encoder.fields,
+                top_m=config.top_m,
+                rank_column=config.rank_column,
+                checkpoint_path=checkpoint,
+                block_queries=config.block_queries,
+            )
+            input_pairs = contract_path
+        else:
+            input_pairs = resolve_project_path(config.pair_artifact, root)
+            explicit_pairs = pl.read_parquet(input_pairs)
+            if config.max_queries_per_split is not None:
+                explicit_pairs = _limit_queries(
+                    explicit_pairs, queries, config.max_queries_per_split
+                )
+            scores = score_pair_frame(
+                explicit_pairs,
+                queries,
+                catalog,
+                scorer,
+                fields=config.cross_encoder.fields,
+                checkpoint_path=checkpoint,
+                block_queries=config.block_queries,
+            )
         stats = scoring_stats(started, scores.height, scorer)
+        invalid_scores = scores.select(
+            (pl.col("cross_encoder_score").is_nan() | pl.col("cross_encoder_score").is_infinite())
+            .sum()
+            .alias("invalid")
+        ).item()
+        if invalid_scores:
+            raise ValueError(f"cross-encoder produced {invalid_scores} invalid scores")
         stats.update(
             {
                 "top_m": config.top_m,
                 "rank_column": config.rank_column,
                 "retrieval_artifact_name": config.retrieval_artifact_name,
                 "candidate_contract": str(contract_path),
+                "input_pairs": str(input_pairs),
+                "input_pairs_sha256": sha256_file(input_pairs),
+                "output_scores_sha256": sha256_file(checkpoint),
+                "invalid_scores": invalid_scores,
                 "pairs_by_split": scores.group_by("split").len().sort("split").to_dicts(),
             }
         )

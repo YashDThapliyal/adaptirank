@@ -122,6 +122,38 @@ def score_top_m(
     """
 
     targets = _target_pairs(candidates, rank_column, top_m)
+    return score_pair_frame(
+        targets,
+        queries,
+        catalog,
+        scorer,
+        fields=fields,
+        checkpoint_path=checkpoint_path,
+        block_queries=block_queries,
+    )
+
+
+def score_pair_frame(
+    targets: pl.DataFrame,
+    queries: pl.DataFrame,
+    catalog: pl.DataFrame,
+    scorer: CrossEncoderScorer,
+    *,
+    fields: PairField,
+    checkpoint_path: Path | None = None,
+    block_queries: int = 512,
+) -> pl.DataFrame:
+    """Score an explicit deduplicated pair frame with the checkpoint/resume contract."""
+
+    required = {"query_key", "product_key", "split"}
+    missing = sorted(required - set(targets.columns))
+    if missing:
+        raise ValueError(f"explicit pair frame is missing columns: {missing}")
+    targets = (
+        targets.select(*sorted(required))
+        .unique(["query_key", "product_key"])
+        .sort("query_key", "product_key")
+    )
     query_text = dict(
         zip(
             queries.get_column("query_key").to_list(),
@@ -134,26 +166,31 @@ def score_top_m(
         for row in catalog.select("product_key", *fields).iter_rows(named=True)
     }
 
-    done: pl.DataFrame | None = None
     if checkpoint_path is not None and checkpoint_path.is_file():
         done = pl.read_parquet(checkpoint_path)
-        done_keys = set(
-            zip(
-                done.get_column("query_key").to_list(),
-                done.get_column("product_key").to_list(),
-                strict=True,
+        if done.height == targets.height:
+            missing_pairs = targets.join(
+                done.select("query_key", "product_key"),
+                on=["query_key", "product_key"],
+                how="anti",
             )
-        )
-        targets = targets.filter(
-            ~pl.struct("query_key", "product_key").map_elements(
-                lambda s: (s["query_key"], s["product_key"]) in done_keys,
-                return_dtype=pl.Boolean,
-            )
-        )
+            if missing_pairs.is_empty():
+                return done.sort("query_key", "cross_encoder_score")
 
     ordered_queries = targets.get_column("query_key").unique(maintain_order=True).to_list()
-    scored_frames: list[pl.DataFrame] = [done] if done is not None else []
+    part_dir = (
+        checkpoint_path.with_suffix(checkpoint_path.suffix + ".parts")
+        if checkpoint_path is not None
+        else None
+    )
+    if part_dir is not None:
+        part_dir.mkdir(parents=True, exist_ok=True)
+    scored_frames: list[pl.DataFrame] = []
     for start in range(0, len(ordered_queries), block_queries):
+        part_path = part_dir / f"part-{start:08d}.parquet" if part_dir is not None else None
+        if part_path is not None and part_path.is_file():
+            scored_frames.append(pl.read_parquet(part_path))
+            continue
         block_keys = ordered_queries[start : start + block_queries]
         block = targets.filter(pl.col("query_key").is_in(block_keys))
         pairs: list[tuple[str, str]] = []
@@ -178,12 +215,10 @@ def score_top_m(
             pl.Series("cross_encoder_score", scores, dtype=pl.Float32)
         )
         scored_frames.append(block_scored)
-        if checkpoint_path is not None:
-            merged = pl.concat(scored_frames, how="vertical")
-            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = checkpoint_path.with_suffix(checkpoint_path.suffix + ".tmp")
-            merged.write_parquet(tmp)
-            tmp.replace(checkpoint_path)
+        if part_path is not None:
+            tmp = part_path.with_suffix(part_path.suffix + ".tmp")
+            block_scored.write_parquet(tmp)
+            tmp.replace(part_path)
 
     if not scored_frames:
         return pl.DataFrame(
@@ -194,7 +229,13 @@ def score_top_m(
                 "cross_encoder_score": pl.Float32,
             }
         )
-    return pl.concat(scored_frames, how="vertical").sort("query_key", "cross_encoder_score")
+    merged = pl.concat(scored_frames, how="vertical").sort("query_key", "cross_encoder_score")
+    if checkpoint_path is not None:
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = checkpoint_path.with_suffix(checkpoint_path.suffix + ".tmp")
+        merged.write_parquet(tmp)
+        tmp.replace(checkpoint_path)
+    return merged
 
 
 def scoring_stats(started: float, pair_count: int, scorer: CrossEncoderScorer) -> dict[str, Any]:

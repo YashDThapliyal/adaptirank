@@ -6,6 +6,22 @@ experiments. E1–E9 are `NOT_RUN` and retain the hypotheses specified in `AGENT
 The 300-source-train/100-source-test official sample has purpose `integration_verification`.
 Its diagnostics may validate plumbing but may not appear in final research result tables.
 
+## E2 ranking protocol
+
+- Candidate source: the separately versioned `M3 three-split retrieval handoff`; canonical M2
+  evidence is read-only and remains the M2 benchmark.
+- Split roles are locked: train fits model parameters; validation selects hyperparameters,
+  features, and early stopping; official test is final evaluation after freezing.
+- Primary pointwise and LambdaMART targets use judged train rows only with `E/S/C/I -> 3/2/1/0`.
+  Unjudged candidates retain null labels/grades and are scored at inference, never relabeled as
+  negatives. Any sampled-unjudged negative experiment must be a separately named ablation.
+- Primary label-free features: BM25/dense/weighted-hybrid/RRF scores and ranks, query length,
+  title length, query-title lexical overlap, exact-token overlap, and brand match. Category is
+  excluded because source coverage is 0%. Cross-encoder score is not a primary LambdaMART feature.
+- CE-A is `Hybrid top-100 -> CE`. CE-B is `Hybrid top-500 -> LambdaMART top-50 -> CE`. One A100
+  run scores the deduplicated union, and coverage of every LambdaMART-top-50 pair is a hard gate.
+- Hardware-mixed latency is labeled by stage and is not presented as directly comparable.
+
 ## E1 retrieval protocol
 
 - Primary relevance for recall: Exact + Substitute.

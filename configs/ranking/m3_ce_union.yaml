@@ -1,0 +1,11 @@
+run:
+  experiment: ranking_m3_ce_union
+  purpose: m3_ce_a_ce_b_deduplicated_pair_union
+  seed: 42
+  artifacts_dir: artifacts
+dataset_fingerprint: dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667
+retrieval_root: artifacts/retrieval/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split
+learned_root: artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/learned
+output_dir: artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder
+hybrid_top_m: 100
+lambdamart_top_m: 50

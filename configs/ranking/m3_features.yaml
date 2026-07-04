@@ -1,0 +1,15 @@
+run:
+  experiment: ranking_m3_features
+  purpose: m3_primary_label_free_features
+  seed: 42
+  artifacts_dir: artifacts
+dataset_dir: artifacts/datasets/esci/processed/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667
+dataset_fingerprint: dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667
+retrieval_output_dir: artifacts/retrieval
+retrieval_artifact_name: m3_three_split
+output_dir: artifacts/ranking
+artifact_name: m3_three_split
+splits: [train, validation, test]
+features:
+  candidate_rank_column: hybrid_rank
+  top_m: 500

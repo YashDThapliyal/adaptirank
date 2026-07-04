@@ -1,0 +1,18 @@
+run:
+  experiment: ranking_m3_handoff_analysis
+  purpose: m3_three_split_handoff_validation
+  seed: 42
+  artifacts_dir: artifacts
+dataset_dir: artifacts/datasets/esci/processed/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667
+dataset_fingerprint: dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667
+retrieval_output_dir: artifacts/retrieval
+m2_artifact_name: full_scientific
+m3_artifact_name: m3_three_split
+top_k: [10, 50, 100, 500]
+source_runs:
+  m2_bm25: 20260703T233135889680Z-retrieval_full_scientific_bm25-e8eb8aac
+  m2_dense: 20260704T022330796938Z-retrieval_full_scientific_dense-4abe16e3
+  m2_hybrid: 20260704T033507773901Z-retrieval_full_scientific_hybrid-254c0f0c
+  m3_bm25: 20260704T045850539474Z-retrieval_m3_three_split_bm25-77793439
+  m3_dense: 20260704T043322125059Z-retrieval_m3_three_split_dense-18e175c6
+  m3_hybrid: 20260704T051103507663Z-retrieval_m3_three_split_hybrid-22416ad8
