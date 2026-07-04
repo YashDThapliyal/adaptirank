@@ -32,7 +32,7 @@ from adaptirank.ranking.cross_encoder import (
     score_pair_frame,
 )
 
-CANONICAL_GIT_COMMIT = "eb67d8f1d8bbba14a58e9a0a12fd787b5efaa01d"
+M3_CE_RELEASE_REF = "m3-ce-a100-v1"
 ARTIFACT_BASE_GIT_COMMIT = "4f327ff86c5a50b11e850620e8b2f8d74311721c"
 CANONICAL_DATASET_FINGERPRINT = "dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667"
 EXPECTED_CE_UNION_ROWS = 3_156_056
@@ -43,8 +43,6 @@ _CONFIG_PATH = Path(__file__).resolve().parents[3] / "configs/ranking/cross_enco
 _PINNED_CONFIG = load_config(_CONFIG_PATH, CrossEncoderRunConfig)
 PINNED_CE_MODEL = _PINNED_CONFIG.cross_encoder.model_name
 PINNED_CE_REVISION = _PINNED_CONFIG.cross_encoder.model_revision
-
-NOTEBOOK_COMMIT = "a533d28199d755ae9c9a49c472015d4700d4e629"
 
 SCORES_MINIMAL_COLUMNS: tuple[str, ...] = (
     "query_key",
@@ -78,11 +76,27 @@ CE_LOCAL_TRANSFER_BUNDLE = "m3_ce_local_transfer.tar.gz"
 CE_FULL_BUNDLE = "m3_ce_a100_outputs.tar.gz"
 
 
+def resolve_release_ref(ref: str = M3_CE_RELEASE_REF, repo_root: Path | None = None) -> str:
+    """Resolve a release tag or ref to a full git commit SHA."""
+
+    root = repo_root or Path(__file__).resolve().parents[3]
+    result = subprocess.run(
+        ["git", "rev-parse", ref],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
 def read_notebook_commit(repo_root: Path | None = None) -> str:
-    """Return the current git HEAD when available, else the pinned notebook commit."""
+    """Return the release ref commit when available, else current git HEAD."""
 
     root = repo_root or Path(__file__).resolve().parents[3]
     try:
+        return resolve_release_ref(M3_CE_RELEASE_REF, root)
+    except (subprocess.CalledProcessError, FileNotFoundError):
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=root,
@@ -91,8 +105,6 @@ def read_notebook_commit(repo_root: Path | None = None) -> str:
             check=True,
         )
         return result.stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return NOTEBOOK_COMMIT
 
 
 def atomic_write_parquet(path: Path, frame: pl.DataFrame) -> None:
@@ -485,6 +497,246 @@ def run_completeness_audit(
     return audit
 
 
+NO_RERUN_DOWNSTREAM_STATEMENT = (
+    "Import m3_ce_local_transfer.tar.gz with make import-m3-ce-outputs, then run "
+    "make rank-m3-ce-evaluate for Hybrid-to-CE and Hybrid-to-LambdaMART-to-CE cascades "
+    "without rerunning cross-encoder scoring on A100."
+)
+
+
+def _downstream_check(status: str, **details: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {"status": status, **details}
+    return payload
+
+
+def run_downstream_readiness_audit(
+    artifacts: dict[str, Path],
+    *,
+    expected_rows: int | None = EXPECTED_CE_UNION_ROWS,
+) -> dict[str, Any]:
+    """Verify CE artifacts are sufficient for local no-rerun cascade evaluation."""
+
+    repo_root = Path(__file__).resolve().parents[3]
+    checks: dict[str, dict[str, Any]] = {}
+
+    def _fail(name: str, error: str) -> None:
+        checks[name] = _downstream_check("FAIL", error=error)
+
+    union_path = artifacts.get("pair_union.parquet")
+    scores_path = artifacts.get("scores.parquet")
+    enriched_path = artifacts.get("scores_enriched.parquet")
+    if (
+        union_path is None
+        or scores_path is None
+        or enriched_path is None
+        or not union_path.is_file()
+        or not scores_path.is_file()
+        or not enriched_path.is_file()
+    ):
+        for name in (
+            "pair_set_completeness",
+            "hybrid_to_ce_eval",
+            "hybrid_to_lambdamart_to_ce_eval",
+            "ce_score_feature_ablation",
+            "failure_slice_analysis",
+        ):
+            if name not in checks:
+                _fail(name, "missing pair_union.parquet, scores.parquet, or scores_enriched")
+    else:
+        try:
+            union = pl.read_parquet(union_path)
+            scores = pl.read_parquet(scores_path)
+            enriched = pl.read_parquet(enriched_path)
+            verify_ce_union_frame(union, expected_rows=expected_rows)
+            verify_final_scores(
+                union.select("query_key", "product_key", "split"),
+                scores.select(*SCORES_MINIMAL_COLUMNS),
+            )
+            if scores.height != union.height:
+                raise ValueError(f"scores rows {scores.height} != union rows {union.height}")
+            if enriched.height != union.height:
+                raise ValueError(f"enriched rows {enriched.height} != union rows {union.height}")
+            checks["pair_set_completeness"] = _downstream_check(
+                "PASS",
+                rows=union.height,
+                unique_pairs=union.select("query_key", "product_key").n_unique(),
+            )
+        except Exception as exc:
+            _fail("pair_set_completeness", str(exc))
+
+        try:
+            hybrid = union.filter(pl.col("in_hybrid_top_100"))
+            if hybrid.is_empty():
+                raise ValueError("no hybrid top-100 pairs")
+            missing = hybrid.join(
+                scores.select("query_key", "product_key"),
+                on=["query_key", "product_key"],
+                how="anti",
+            )
+            if not missing.is_empty():
+                raise ValueError(f"missing scores for {missing.height} hybrid pairs")
+            checks["hybrid_to_ce_eval"] = _downstream_check(
+                "PASS",
+                pairs=hybrid.height,
+                eval_command="make rank-m3-ce-evaluate",
+                method="hybrid_to_cross_encoder",
+            )
+        except Exception as exc:
+            _fail("hybrid_to_ce_eval", str(exc))
+
+        try:
+            cascade = union.filter(pl.col("in_lambdamart_top_50"))
+            if cascade.is_empty():
+                raise ValueError("no lambdamart top-50 pairs")
+            missing = cascade.join(
+                scores.select("query_key", "product_key"),
+                on=["query_key", "product_key"],
+                how="anti",
+            )
+            if not missing.is_empty():
+                raise ValueError(f"missing scores for {missing.height} lambdamart pairs")
+            checks["hybrid_to_lambdamart_to_ce_eval"] = _downstream_check(
+                "PASS",
+                pairs=cascade.height,
+                eval_command="make rank-m3-ce-evaluate",
+                method="hybrid_to_lambdamart_to_cross_encoder",
+            )
+        except Exception as exc:
+            _fail("hybrid_to_lambdamart_to_ce_eval", str(exc))
+
+        try:
+            missing_cols = _missing_columns(enriched, set(SCORES_ENRICHED_COLUMNS))
+            if missing_cols:
+                raise ValueError(f"enriched scores missing columns: {missing_cols}")
+            checks["ce_score_feature_ablation"] = _downstream_check(
+                "PASS",
+                columns=list(SCORES_ENRICHED_COLUMNS),
+                role="LambdaMART+CE-score ablation via scores_enriched.parquet",
+            )
+        except Exception as exc:
+            _fail("ce_score_feature_ablation", str(exc))
+
+        try:
+            required = {"split", "in_hybrid_top_100", "in_lambdamart_top_50", "cross_encoder_score"}
+            missing_cols = _missing_columns(enriched, required)
+            if missing_cols:
+                raise ValueError(f"slice columns missing: {missing_cols}")
+            checks["failure_slice_analysis"] = _downstream_check(
+                "PASS",
+                splits=enriched.get_column("split").unique().sort().to_list(),
+                hybrid_pairs=int(enriched.get_column("in_hybrid_top_100").sum()),
+                lambdamart_pairs=int(enriched.get_column("in_lambdamart_top_50").sum()),
+            )
+        except Exception as exc:
+            _fail("failure_slice_analysis", str(exc))
+
+    benchmark_path = artifacts.get("benchmark.json")
+    scoring_stats_path = artifacts.get("scoring_stats.json")
+    try:
+        if benchmark_path is None or not benchmark_path.is_file():
+            raise FileNotFoundError("benchmark.json missing")
+        if scoring_stats_path is None or not scoring_stats_path.is_file():
+            raise FileNotFoundError("scoring_stats.json missing")
+        benchmark = json.loads(benchmark_path.read_text(encoding="utf-8"))
+        scoring_stats = json.loads(scoring_stats_path.read_text(encoding="utf-8"))
+        if not benchmark.get("trials"):
+            raise ValueError("benchmark.json has no trials")
+        if benchmark.get("selected_batch_size") is None:
+            raise ValueError("benchmark.json missing selected_batch_size")
+        if scoring_stats.get("pairs_scored") is None:
+            raise ValueError("scoring_stats.json missing pairs_scored")
+        checks["quality_latency_analysis"] = _downstream_check(
+            "PASS",
+            selected_batch_size=benchmark.get("selected_batch_size"),
+            pairs_scored=scoring_stats.get("pairs_scored"),
+            elapsed_seconds=scoring_stats.get("elapsed_seconds"),
+            latency_caveat=(
+                "CE latency is Colab A100 CUDA; compare quality metrics only across methods"
+            ),
+        )
+    except Exception as exc:
+        checks["quality_latency_analysis"] = _downstream_check("FAIL", error=str(exc))
+
+    distribution_path = artifacts.get("score_distribution.json")
+    try:
+        if distribution_path is None or not distribution_path.is_file():
+            raise FileNotFoundError("score_distribution.json missing")
+        distribution = json.loads(distribution_path.read_text(encoding="utf-8"))
+        if "global" not in distribution or "by_split" not in distribution:
+            raise ValueError("score_distribution.json missing global or by_split sections")
+        checks["score_distribution_analysis"] = _downstream_check(
+            "PASS",
+            global_count=distribution["global"].get("count"),
+            splits=sorted(distribution["by_split"]),
+        )
+    except Exception as exc:
+        checks["score_distribution_analysis"] = _downstream_check("FAIL", error=str(exc))
+
+    provenance_path = artifacts.get("provenance.json")
+    manifest_path = artifacts.get("pair_union_manifest.json")
+    try:
+        if provenance_path is None or not provenance_path.is_file():
+            raise FileNotFoundError("provenance.json missing")
+        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+        required_keys = {
+            "notebook_commit",
+            "scoring_code_commit",
+            "artifact_base_commit",
+            "dataset_fingerprint",
+            "union_manifest",
+            "input_archive_sha256",
+            "model",
+        }
+        missing_keys = sorted(required_keys - set(provenance))
+        if missing_keys:
+            raise ValueError(f"provenance.json missing keys: {missing_keys}")
+        if manifest_path is None or not manifest_path.is_file():
+            raise FileNotFoundError("pair_union_manifest.json missing")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if int(manifest.get("union_pairs", -1)) != int(
+            provenance.get("union_manifest", {}).get("union_pairs", -2)
+        ):
+            raise ValueError("provenance union_manifest does not match pair_union_manifest.json")
+        checks["provenance_reconstruction"] = _downstream_check(
+            "PASS",
+            notebook_commit=provenance.get("notebook_commit"),
+            scoring_code_commit=provenance.get("scoring_code_commit"),
+            dataset_fingerprint=provenance.get("dataset_fingerprint"),
+        )
+    except Exception as exc:
+        checks["provenance_reconstruction"] = _downstream_check("FAIL", error=str(exc))
+
+    bundle_path = artifacts.get(CE_LOCAL_TRANSFER_BUNDLE)
+    try:
+        if bundle_path is None or not bundle_path.is_file():
+            raise FileNotFoundError(f"{CE_LOCAL_TRANSFER_BUNDLE} missing")
+        import_script = repo_root / "scripts" / "import_m3_ce_outputs.py"
+        evaluate_config = repo_root / "configs" / "ranking" / "m3_ce_evaluate.yaml"
+        if not import_script.is_file() or not evaluate_config.is_file():
+            raise FileNotFoundError("local import or evaluate config is missing from repo")
+        with tarfile.open(bundle_path, "r:gz") as handle:
+            names = {Path(member.name).name for member in handle.getmembers() if member.isfile()}
+        missing_members = [name for name in CE_CANONICAL_ARTIFACTS if name not in names]
+        if missing_members:
+            raise ValueError(f"transfer bundle missing canonical artifacts: {missing_members}")
+        checks["local_cascade_eval_import"] = _downstream_check(
+            "PASS",
+            bundle=str(bundle_path.resolve()),
+            import_command="make import-m3-ce-outputs",
+            evaluate_command="make rank-m3-ce-evaluate",
+            member_count=len(names),
+        )
+    except Exception as exc:
+        checks["local_cascade_eval_import"] = _downstream_check("FAIL", error=str(exc))
+
+    audit_status = "PASS" if all(item["status"] == "PASS" for item in checks.values()) else "FAIL"
+    return {
+        "status": audit_status,
+        "checks": checks,
+        "no_rerun_statement": NO_RERUN_DOWNSTREAM_STATEMENT,
+    }
+
+
 def _create_tar_bundle(bundle_path: Path, members: list[tuple[Path, str]]) -> dict[str, Any]:
     bundle_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = bundle_path.with_suffix(bundle_path.suffix + ".tmp")
@@ -637,6 +889,19 @@ def finalize_m3_ce_run(
         (artifact_map[name], f"cross_encoder/{name}") for name in CE_CANONICAL_ARTIFACTS
     ]
     transfer_bundle = _create_tar_bundle(final_dir / CE_LOCAL_TRANSFER_BUNDLE, transfer_members)
+    artifact_map[CE_LOCAL_TRANSFER_BUNDLE] = final_dir / CE_LOCAL_TRANSFER_BUNDLE
+    downstream_readiness_audit = run_downstream_readiness_audit(
+        artifact_map, expected_rows=expected_rows
+    )
+    downstream_audit_path = metadata_dir / "downstream_readiness_audit.json"
+    atomic_write_json(downstream_audit_path, downstream_readiness_audit)
+    if downstream_readiness_audit["status"] != "PASS":
+        failed = [
+            name
+            for name, payload in downstream_readiness_audit["checks"].items()
+            if payload.get("status") != "PASS"
+        ]
+        raise ValueError(f"downstream readiness audit failed for: {failed}")
     full_members = [(path, f"final/{path.name}") for path in final_dir.iterdir() if path.is_file()]
     full_members.extend(
         (path, f"metadata/{path.name}") for path in metadata_dir.iterdir() if path.is_file()
@@ -653,6 +918,7 @@ def finalize_m3_ce_run(
         "completeness_audit": audit,
         "transfer_bundle": transfer_bundle,
         "full_bundle": full_bundle,
+        "downstream_readiness_audit": downstream_readiness_audit,
         "rows": scores.height,
     }
 

@@ -10,10 +10,12 @@ import pytest
 
 from adaptirank.ranking.ce_workflow import (
     CE_CANONICAL_ARTIFACTS,
+    M3_CE_RELEASE_REF,
     SCORES_ENRICHED_COLUMNS,
     consolidate_part_blocks,
     enrich_scores,
     finalize_m3_ce_run,
+    resolve_release_ref,
     run_completeness_audit,
     score_distribution_report,
     score_union_with_checkpoints,
@@ -252,8 +254,29 @@ def test_finalize_m3_ce_run_from_checkpoint(tmp_path: Path) -> None:
         union_sha256="union",
         input_archive_sha256="archive",
         run_times={"scoring_seconds": 1.0},
+        expected_rows=4,
     )
     assert result["rows"] == 4
     assert result["completeness_audit"]["status"] == "PASS"
+    assert result["downstream_readiness_audit"]["status"] == "PASS"
     assert (drive_root / "final" / "scores.parquet").is_file()
     assert (drive_root / "final" / "scores_enriched.parquet").is_file()
+
+
+def test_resolve_release_ref_uses_head_before_release_tag() -> None:
+    """HEAD resolves in the repo even when the release tag is not created yet."""
+    import subprocess
+
+    repo_root = Path(__file__).resolve().parents[2]
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert resolve_release_ref("HEAD", repo_root) == head
+    try:
+        resolve_release_ref(M3_CE_RELEASE_REF, repo_root)
+    except subprocess.CalledProcessError:
+        pass

@@ -44,6 +44,11 @@ def main() -> None:
     if "adaptirank.ranking.ce_workflow" not in text:
         raise ValueError("notebook does not use adaptirank.ranking.ce_workflow")
 
+    if "M3_CE_RELEASE_REF" not in text:
+        raise ValueError("notebook must define M3_CE_RELEASE_REF")
+    if "resolve_release_ref" not in text and "checkout release tag" not in text.lower():
+        raise ValueError("notebook must checkout release tag or call resolve_release_ref")
+
     print(f"validated {NOTEBOOK}: {len(cells)} cells, {len(code_cells)} code cells")
 
 

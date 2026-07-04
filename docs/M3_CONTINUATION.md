@@ -36,12 +36,11 @@ auctions, RL, multi-agent, serving, agentic).**
 
 ## Canonical identifiers (do not lose these)
 
-- **Repo:** `github.com/YashDThapliyal/adaptirank` (public). Canonical CE Colab scoring commit =
-  **`eb67d8f1d8bbba14a58e9a0a12fd787b5efaa01d`** (`eb67d8f`). Drive-staged CE union/archive artifacts were built at
+- **Repo:** `github.com/YashDThapliyal/adaptirank` (public). Canonical CE Colab release tag = **`m3-ce-a100-v1`**. Drive-staged CE union/archive artifacts were built at
   **`4f327ff86c5a50b11e850620e8b2f8d74311721c`** (`4f327ff`).
   Commit chain: `21842f8` (M2 complete) → `efe43a5` (M3 three-split config) →
   `1bc808b` (cross-encoder) → `4f327ff` (deterministic ties + artifact base) →
-  `eb67d8f` (CE A100 workflow/notebook).
+  `m3-ce-a100-v1` (CE A100 workflow/notebook).
 - **Dataset fingerprint (M1.5 canonical):** `dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667`
   at `artifacts/datasets/esci/processed/<fingerprint>/`.
 - **M2 canonical retrieval (NEVER overwrite; artifact_name `full_scientific`):**
@@ -125,7 +124,7 @@ auctions, RL, multi-agent, serving, agentic).**
 8. **Build CE union pairs (after LambdaMART):** complete. Canonical union has 3,156,056 unique
    pairs, zero duplicate pairs, and zero LambdaMART-top-50 pairs missing from the union.
 9. **CE full run (one fresh A100 Colab session):** use
-   `notebooks/m3_cross_encoder_a100_runall.ipynb`. It clones commit `eb67d8f` (scoring code; artifacts built at `4f327ff`), installs from the
+   `notebooks/m3_cross_encoder_a100_runall.ipynb`. It checks out tag `m3-ce-a100-v1` (scoring code; artifacts built at `4f327ff`), installs from the
    lockfile, verifies `m3_ce_a100_input.tar.gz`, extracts the union pairs + dataset from Drive,
    benchmarks throughput on a deterministic validation subset, scores the union with Drive
    checkpoints via `adaptirank.ranking.ce_workflow.score_union_with_checkpoints`, consolidates final
