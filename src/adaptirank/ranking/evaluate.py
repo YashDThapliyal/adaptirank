@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 import polars as pl
 
+from adaptirank.common.ordering import assign_deterministic_rank
 from adaptirank.retrieval.base import IndexBuildStats, RetrievalResult
 from adaptirank.retrieval.evaluate import PRIMARY_LABELS, evaluate_result
 
@@ -81,16 +82,10 @@ def evaluate_ranking(
 
 
 def ranked_candidates(frame: pl.DataFrame, score_column: str, rank_column: str) -> pl.DataFrame:
-    """Return retrieval-compatible candidates with deterministic tie ordering."""
+    """Return retrieval-compatible candidates with canonical score DESC, product_key ASC ties."""
 
-    ordered = frame.sort(
-        ["query_key", score_column, "hybrid_rank", "product_key"],
-        descending=[False, True, False, False],
-        nulls_last=True,
-    ).with_columns(
-        pl.col("product_key").cum_count().over("query_key").cast(pl.Int32).alias(rank_column)
-    )
-    return ordered.select(
+    ranked = assign_deterministic_rank(frame, score_col=score_column, rank_col=rank_column)
+    return ranked.select(
         "query_key",
         "product_key",
         "split",

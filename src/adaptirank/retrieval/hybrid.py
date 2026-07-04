@@ -7,6 +7,8 @@ from typing import Any
 
 import polars as pl
 
+from adaptirank.common.ordering import assign_deterministic_rank, verify_pair_uniqueness
+
 
 def _method_columns(frame: pl.DataFrame, prefix: str) -> pl.DataFrame:
     return frame.select(
@@ -50,19 +52,14 @@ def weighted_fusion(
             .otherwise(1.0)
             .alias(f"{prefix}_normalized")
         )
+    scored = union.with_columns(
+        (alpha * pl.col("bm25_normalized") + (1.0 - alpha) * pl.col("dense_normalized")).alias(
+            "score"
+        )
+    )
+    verify_pair_uniqueness(scored)
     fused = (
-        union.with_columns(
-            (alpha * pl.col("bm25_normalized") + (1.0 - alpha) * pl.col("dense_normalized")).alias(
-                "score"
-            )
-        )
-        .with_columns(
-            pl.col("score")
-            .rank(method="ordinal", descending=True)
-            .over("query_key")
-            .cast(pl.Int32)
-            .alias("rank")
-        )
+        assign_deterministic_rank(scored, score_col="score")
         .filter(pl.col("rank") <= top_k)
         .select(
             "query_key",
@@ -72,7 +69,6 @@ def weighted_fusion(
             "score",
             "rank",
         )
-        .sort("query_key", "rank")
     )
     return fused, time.perf_counter() - started
 
@@ -83,25 +79,19 @@ def reciprocal_rank_fusion(
     """Fuse method ranks without score calibration."""
 
     started = time.perf_counter()
+    scored = _union(bm25, dense).with_columns(
+        (
+            pl.when(pl.col("bm25_rank").is_not_null())
+            .then(1.0 / (rrf_k + pl.col("bm25_rank")))
+            .otherwise(0.0)
+            + pl.when(pl.col("dense_rank").is_not_null())
+            .then(1.0 / (rrf_k + pl.col("dense_rank")))
+            .otherwise(0.0)
+        ).alias("score")
+    )
+    verify_pair_uniqueness(scored)
     fused = (
-        _union(bm25, dense)
-        .with_columns(
-            (
-                pl.when(pl.col("bm25_rank").is_not_null())
-                .then(1.0 / (rrf_k + pl.col("bm25_rank")))
-                .otherwise(0.0)
-                + pl.when(pl.col("dense_rank").is_not_null())
-                .then(1.0 / (rrf_k + pl.col("dense_rank")))
-                .otherwise(0.0)
-            ).alias("score")
-        )
-        .with_columns(
-            pl.col("score")
-            .rank(method="ordinal", descending=True)
-            .over("query_key")
-            .cast(pl.Int32)
-            .alias("rank")
-        )
+        assign_deterministic_rank(scored, score_col="score")
         .filter(pl.col("rank") <= top_k)
         .select(
             "query_key",
@@ -111,7 +101,6 @@ def reciprocal_rank_fusion(
             "score",
             "rank",
         )
-        .sort("query_key", "rank")
     )
     return fused, time.perf_counter() - started
 
@@ -186,7 +175,7 @@ def candidate_contract(
             "relevance_grade",
             "judgment_status",
         )
-        .sort("query_key", "hybrid_rank", "rrf_rank", nulls_last=True)
+        .sort("query_key", "hybrid_rank", "rrf_rank", "product_key", nulls_last=True)
     )
 
 

@@ -7,13 +7,12 @@ def test_average_precision_condensed_counts_missed_known_relevant() -> None:
     assert average_precision_condensed(["I", "E", "S"], relevant_count=4) == (0.5 + 2 / 3) / 4
 
 
-def test_ranked_candidates_uses_deterministic_tie_break() -> None:
+def test_ranked_candidates_uses_product_key_only_for_equal_scores() -> None:
     frame = pl.DataFrame(
         {
             "query_key": ["q", "q"],
             "product_key": ["b", "a"],
             "split": ["test", "test"],
-            "hybrid_rank": [2, 1],
             "model_score": [1.0, 1.0],
         }
     )

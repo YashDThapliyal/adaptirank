@@ -29,6 +29,7 @@ import pyarrow as pa  # type: ignore[import-untyped]
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
 from adaptirank.common.config import load_config
+from adaptirank.common.ordering import assign_deterministic_rank
 from adaptirank.common.paths import project_root, resolve_project_path
 from adaptirank.common.reproducibility import seed_everything
 from adaptirank.common.run import ExperimentRun
@@ -259,23 +260,13 @@ def main() -> None:
                 batch_size=config.ranking.prediction_batch_size,
             )
             frame = pl.read_parquet(raw_path)
-            ranked = frame.with_columns(
-                pl.col("heuristic_score")
-                .rank("ordinal", descending=True)
-                .over("query_key")
-                .cast(pl.Int32)
-                .alias("heuristic_rank"),
-                pl.col("pointwise_score")
-                .rank("ordinal", descending=True)
-                .over("query_key")
-                .cast(pl.Int32)
-                .alias("pointwise_rank"),
-                pl.col("lambdamart_score")
-                .rank("ordinal", descending=True)
-                .over("query_key")
-                .cast(pl.Int32)
-                .alias("lambdamart_rank"),
-            )
+            ranked = frame
+            for score_col, rank_col in (
+                ("heuristic_score", "heuristic_rank"),
+                ("pointwise_score", "pointwise_rank"),
+                ("lambdamart_score", "lambdamart_rank"),
+            ):
+                ranked = assign_deterministic_rank(ranked, score_col=score_col, rank_col=rank_col)
             ranking_path = out / f"rankings_{split}.parquet"
             ranked.write_parquet(ranking_path, compression="zstd")
             rankings[split] = ranked

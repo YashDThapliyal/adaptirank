@@ -16,6 +16,8 @@ from typing import Any
 import numpy as np
 import polars as pl
 
+from adaptirank.common.ordering import assign_deterministic_rank
+
 # Fields concatenated (in this fixed order) to build the product side of each pair.
 PairField = tuple[str, ...]
 
@@ -175,7 +177,9 @@ def score_pair_frame(
                 how="anti",
             )
             if missing_pairs.is_empty():
-                return done.sort("query_key", "cross_encoder_score")
+                return assign_deterministic_rank(
+                    done, score_col="cross_encoder_score", rank_col="_order_rank"
+                ).drop("_order_rank")
 
     ordered_queries = targets.get_column("query_key").unique(maintain_order=True).to_list()
     part_dir = (
@@ -229,7 +233,10 @@ def score_pair_frame(
                 "cross_encoder_score": pl.Float32,
             }
         )
-    merged = pl.concat(scored_frames, how="vertical").sort("query_key", "cross_encoder_score")
+    merged = pl.concat(scored_frames, how="vertical")
+    merged = assign_deterministic_rank(
+        merged, score_col="cross_encoder_score", rank_col="_order_rank"
+    ).drop("_order_rank")
     if checkpoint_path is not None:
         checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
         tmp = checkpoint_path.with_suffix(checkpoint_path.suffix + ".tmp")
