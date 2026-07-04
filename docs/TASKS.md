@@ -11,8 +11,8 @@
 - [x] M2C weighted and reciprocal-rank hybrid retrieval: smoke + full `SUCCESS`; validation-only alpha=0.5 frozen before test; both fusions beat both components. Run `...-254c0f0c`.
 - [x] M2 full scientific benchmark comparison, slices, failure analysis, and M3-ready candidate contract complete. See docs/RESULTS.md E1 final comparison.
 - [x] M3 ranking: three-split retrieval contract, M2 delta analysis, learned baselines,
-  LambdaMART, full 3,156,056-row CE scoring import/evaluation, CE audit, findings file, and final
-  M3 analysis are complete. Clean-provenance rerun remains pending after commit if promoted.
+  LambdaMART, full 3,156,056-row CE scoring import/evaluation, CE audit, findings file, final
+  M3 analysis, and clean-provenance CE evaluation + analysis rerun are complete.
 - [ ] M4 simulator.
 - [ ] M5 bandits.
 - [ ] M6 OPE.
