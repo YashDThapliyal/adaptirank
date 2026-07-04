@@ -10,8 +10,10 @@
 - [x] M2B pretrained dense retrieval: smoke + full benchmark `SUCCESS`. Full run on Colab CUDA (local was memory-bound), clean provenance (`git_dirty=false`, fingerprint matches M1.5), re-verified locally. Run `...-4abe16e3`. macOS OpenMP segfault + BLAS deadlock fixed (ADR-007).
 - [x] M2C weighted and reciprocal-rank hybrid retrieval: smoke + full `SUCCESS`; validation-only alpha=0.5 frozen before test; both fusions beat both components. Run `...-254c0f0c`.
 - [x] M2 full scientific benchmark comparison, slices, failure analysis, and M3-ready candidate contract complete. See docs/RESULTS.md E1 final comparison.
-- [~] M3 ranking: three-split retrieval contract and M2 delta analysis built; learned baselines,
-  LambdaMART, CE union/full scoring, cascades, and final analysis remain in progress.
+- [~] M3 ranking: three-split retrieval contract, M2 delta analysis, learned baselines,
+  LambdaMART, and canonical 3,156,056-row CE union are built. The CE A100 run-all notebook is
+  ready at `notebooks/m3_cross_encoder_a100_runall.ipynb`; full CE scoring, cascades, and final
+  analysis remain pending.
 - [ ] M4 simulator.
 - [ ] M5 bandits.
 - [ ] M6 OPE.

@@ -5,7 +5,7 @@ This is a working handoff so another agent can resume M3 exactly where it paused
 **M3 Learning-to-Rank only. Do NOT begin M4+ (response prediction, simulator, bandits, OPE,
 auctions, RL, multi-agent, serving, agentic).**
 
-## Where we are (reconciled 2026-07-03 Pacific)
+## Where we are (reconciled 2026-07-04 Pacific)
 
 - ✅ Dense and BM25 three-split retrieval are complete and locally verified. BM25 run
   `...-77793439` is clean (`git_dirty=false`) and validation selected title-only.
@@ -17,17 +17,21 @@ auctions, RL, multi-agent, serving, agentic).**
 - ✅ Label-free Hybrid-top-500 ranking features, heuristic, pointwise, and validation-selected
   LambdaMART runs are complete locally. LambdaMART test NDCG@10 is 0.659345 versus 0.656440 for
   weighted hybrid; full shared-harness and slice analysis exists.
-- ✅ The CE-A/CE-B union is complete: 3,195,572 unique pairs = Hybrid top-100 union LambdaMART
-  top-50, with zero missing LambdaMART pairs and SHA-256 `2d796572...`.
+- ✅ The CE-A/CE-B union is complete: 3,156,056 unique pairs = Hybrid top-100 union LambdaMART
+  top-50, with zero missing LambdaMART pairs and SHA-256
+  `16a43b01f0ba159e5950c1fe7d4363b6c05d7b0c9ffe6c581272379ef9c8488d`.
 - ✅ Cross-encoder smoke/resume remains valid; scalable per-block checkpointing is implemented.
+- ✅ Canonical A100 run-all notebook is ready at `notebooks/m3_cross_encoder_a100_runall.ipynb`.
 - ⏳ Full A100 CE union scoring and cascade evaluation remain pending. M3 is therefore not complete.
 - ⚠️ Runs created while implementing the new local pipeline record `git_dirty=true`; they are
   development evidence. Clean-provenance reruns are required after committing the implementation.
 
 ## Canonical identifiers (do not lose these)
 
-- **Repo:** `github.com/YashDThapliyal/adaptirank` (public). `origin/main` = **`1bc808b`**.
-  Commit chain: `21842f8` (M2 complete) → `efe43a5` (M3 three-split config) → `1bc808b` (cross-encoder).
+- **Repo:** `github.com/YashDThapliyal/adaptirank` (public). Canonical CE Colab commit =
+  **`4f327ff86c5a50b11e850620e8b2f8d74311721c`**.
+  Commit chain: `21842f8` (M2 complete) → `efe43a5` (M3 three-split config) →
+  `1bc808b` (cross-encoder) → `4f327ff` (CE A100 workflow/notebook).
 - **Dataset fingerprint (M1.5 canonical):** `dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667`
   at `artifacts/datasets/esci/processed/<fingerprint>/`.
 - **M2 canonical retrieval (NEVER overwrite; artifact_name `full_scientific`):**
@@ -91,7 +95,7 @@ auctions, RL, multi-agent, serving, agentic).**
    ranking analysis, and CE union from a clean worktree so promoted run metadata is clean.
 2. Package `make rank-m3-ce-package` and run the pinned union scorer on an A100 only after a
    deterministic throughput/memory benchmark. Keep the block checkpoints on Google Drive.
-3. Transfer scores back, verify the exact 3,195,572-pair coverage and hashes, then run
+3. Transfer scores back, verify the exact 3,156,056-pair coverage and hashes, then run
    `make rank-m3-ce-evaluate`.
 4. Update RESULTS/TASKS only from verified clean runs. Do not mark M3 complete before full CE and
    cascade evidence exist.
@@ -108,16 +112,14 @@ auctions, RL, multi-agent, serving, agentic).**
    early-stop on **validation only**, freeze config, evaluate on test. Judged-only training targets.
    Record params, training time, inference latency, feature importances. Metrics: NDCG@5/@10, MRR,
    MAP, Recall@K, p50/p95 rerank latency, throughput. Compare vs fixed fusion.
-8. **Build CE union pairs (after LambdaMART):** `Hybrid top-100` ∪ `LambdaMART top-50`, dedup on
-   (query_key, product_key). **Extend the CE runner** — `score_top_m` currently selects top-M by a
-   single `rank_column`; add a mode to score an explicit union pair-frame. Verify union covers every
-   LambdaMART-top-50 pair.
-9. **CE full run (one fresh A100 Colab session):** build a CE notebook (analogous to
-   `adaptirank_m3_colab.ipynb`) that clones commit with the CE code, installs, pulls the union pairs
-   + catalog from Drive, **benchmarks throughput on a deterministic subset first** (record batch size,
-   GPU, dtype, seq length, pairs/sec, memory — don't promise runtime blind), then scores the union
-   (resumable), saves scores + provenance + SHAs to Drive. Transfer back; re-verify locally. CE
-   already validated: local CPU smoke `make rank-smoke-cross-encoder` passes; resume verified.
+8. **Build CE union pairs (after LambdaMART):** complete. Canonical union has 3,156,056 unique
+   pairs, zero duplicate pairs, and zero LambdaMART-top-50 pairs missing from the union.
+9. **CE full run (one fresh A100 Colab session):** use
+   `notebooks/m3_cross_encoder_a100_runall.ipynb`. It clones commit `4f327ff`, installs from the
+   lockfile, verifies `m3_ce_a100_input.tar.gz`, extracts the union pairs + dataset from Drive,
+   benchmarks throughput on a deterministic validation subset, scores the union with Drive
+   checkpoints via `adaptirank.ranking.ce_workflow.score_union_with_checkpoints`, consolidates final
+   scores, and writes metadata + SHAs to Drive. Transfer back; re-verify locally.
 10. **Cascade (Part F) + analysis (Part G):** evaluate Hybrid-only, Hybrid→LambdaMART,
     Hybrid→CE (depths 20/50/100), Hybrid→LambdaMART→CE. Report `LambdaMART+CE-score` as a separate
     ablation. Produce overall comparison, quality-latency Pareto (hardware-labeled), per-query
@@ -139,8 +141,13 @@ worktree clean · **no M4+ work begun**.
 
 - `src/adaptirank/ranking/cross_encoder.py` — `CrossEncoderScorer` (deterministic, batched,
   CUDA/MPS/CPU, checkpoint/resume), `build_product_text`, `score_top_m`, `scoring_stats`.
+- `src/adaptirank/ranking/ce_workflow.py` — canonical CE A100 constants, file/hash validation,
+  GPU gate, union/final-score checks, benchmark helper, block manifests, consolidation, and
+  `score_union_with_checkpoints`.
 - `src/adaptirank/ranking/config.py` — `CrossEncoderConfig`, `CrossEncoderRunConfig`.
 - `scripts/score_cross_encoder.py` — runner (reads candidate contract, scores top-M, persists).
+- `scripts/validate_m3_ce_notebook.py` — structural validation for the canonical run-all notebook.
+- `notebooks/m3_cross_encoder_a100_runall.ipynb` — canonical CE A100 Colab entry point.
 - `configs/ranking/cross_encoder_smoke.yaml` (official-sample, CPU, top-20, capped) and
   `cross_encoder_m3.yaml` (m3_three_split, top-100, device auto).
 - `tests/unit/test_cross_encoder.py` — 4 tests (fake scorer, no download).

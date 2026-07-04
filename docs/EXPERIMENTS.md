@@ -22,6 +22,21 @@ Its diagnostics may validate plumbing but may not appear in final research resul
   run scores the deduplicated union, and coverage of every LambdaMART-top-50 pair is a hard gate.
 - Hardware-mixed latency is labeled by stage and is not presented as directly comparable.
 
+### CE A100 Colab protocol
+
+- Canonical entry point: `notebooks/m3_cross_encoder_a100_runall.ipynb`.
+- The notebook must clone `YashDThapliyal/adaptirank` at
+  `4f327ff86c5a50b11e850620e8b2f8d74311721c`, verify the clean checkout, install from the
+  lockfile, and use `adaptirank.ranking.ce_workflow` for all gates.
+- Inputs are Drive-staged: `MyDrive/adaptirank/m3_ce_a100_input.tar.gz` with SHA-256
+  `a79bb8ad98b2cdbfb56b6f6680c95ce87ef1dd792a16ac91d95fec563ee67f5f`, plus
+  `MyDrive/adaptirank/adaptirank_dataset.tar`.
+- The CE union must verify as exactly 3,156,056 rows with parquet SHA-256
+  `16a43b01f0ba159e5950c1fe7d4363b6c05d7b0c9ffe6c581272379ef9c8488d` before scoring.
+- The notebook must run the pinned cross-encoder probe, benchmark deterministic validation pairs,
+  write Drive checkpoint blocks, consolidate final scores, and verify one finite score for every
+  union pair before any cascade evaluation consumes the scores.
+
 ## E1 retrieval protocol
 
 - Primary relevance for recall: Exact + Substitute.
