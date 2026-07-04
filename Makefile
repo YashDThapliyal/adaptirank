@@ -4,7 +4,8 @@ export UV_CACHE_DIR
 
 .PHONY: setup lint typecheck test smoke ci lock official-sample esci-benchmark esci-large \
 	retrieval-fixture-bm25 retrieval-smoke-bm25 retrieval-smoke-dense retrieval-smoke-hybrid \
-	retrieval-full-bm25 retrieval-full-dense retrieval-full-hybrid
+	retrieval-full-bm25 retrieval-full-dense retrieval-full-hybrid \
+	retrieval-m3-bm25 retrieval-m3-dense retrieval-m3-hybrid
 
 setup:
 	$(UV) sync --frozen --dev
@@ -59,3 +60,14 @@ retrieval-full-dense:
 
 retrieval-full-hybrid:
 	$(UV) run python scripts/run_retrieval.py --config configs/retrieval/full.yaml --method hybrid
+
+# M3 three-split retrieval handoff (train + validation + test). Separate artifact_name;
+# never overwrites the canonical M2 `full_scientific` artifacts. Dense runs on CUDA (Colab).
+retrieval-m3-bm25:
+	$(UV) run python scripts/run_retrieval.py --config configs/retrieval/m3_three_split.yaml --method bm25
+
+retrieval-m3-dense:
+	$(UV) run python scripts/run_retrieval.py --config configs/retrieval/m3_three_split.yaml --method dense
+
+retrieval-m3-hybrid:
+	$(UV) run python scripts/run_retrieval.py --config configs/retrieval/m3_three_split.yaml --method hybrid

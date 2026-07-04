@@ -1,0 +1,34 @@
+run:
+  experiment: retrieval_m3_three_split
+  purpose: m3_three_split_handoff
+  seed: 42
+  artifacts_dir: artifacts
+dataset_dir: artifacts/datasets/esci/processed/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667
+dataset_fingerprint: dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667
+output_dir: artifacts/retrieval
+artifact_name: m3_three_split
+evaluation_splits: [train, validation, test]
+top_k: [10, 50, 100, 500]
+max_queries_per_split: null
+bm25:
+  field_sets:
+    - name: title
+      fields: [title]
+    - name: title_description
+      fields: [title, description]
+    - name: title_description_brand
+      fields: [title, description, brand]
+  writer_heap_bytes: 512000000
+dense:
+  model_name: sentence-transformers/multi-qa-MiniLM-L6-cos-v1
+  model_revision: b207367332321f8e44f96e224ef15bc607f4dbf0
+  fields: [title, description, brand]
+  batch_size: 256
+  outer_batch_size: 4096
+  device: auto
+  nlist: 2048
+  nprobe: 64
+  training_sample_size: 100000
+hybrid:
+  alpha_grid: [0.0, 0.25, 0.5, 0.75, 1.0]
+  rrf_k: 60

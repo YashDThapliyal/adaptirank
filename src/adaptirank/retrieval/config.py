@@ -49,7 +49,7 @@ class RetrievalConfig(StrictModel):
     dataset_fingerprint: str
     output_dir: Path = Path("artifacts/retrieval")
     artifact_name: str
-    evaluation_splits: tuple[Literal["validation", "test"], ...] = ("validation", "test")
+    evaluation_splits: tuple[Literal["train", "validation", "test"], ...] = ("validation", "test")
     top_k: tuple[int, ...] = (10, 50, 100, 500)
     max_queries_per_split: int | None = Field(default=None, gt=0)
     bm25: BM25Config
