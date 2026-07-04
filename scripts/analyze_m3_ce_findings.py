@@ -844,6 +844,13 @@ def example_rows(
     )
 
 
+def keyword_compatibility_examples_base(base: pl.DataFrame) -> pl.DataFrame:
+    return base.filter(pl.col("in_hybrid_top_100")).sort(
+        ["cross_encoder_score", "query_key", "product_key"],
+        descending=[False, False, False],
+    )
+
+
 def win_loss_examples(
     base: pl.DataFrame,
     per_query: dict[str, pl.DataFrame],
@@ -963,10 +970,7 @@ def build_representative_examples(
         frames.append(example_rows(rows, "S_C_inversion", row["delta"], limit=2))
     frames.append(
         example_rows(
-            base.filter(pl.col("in_hybrid_top_100")).sort(
-                ["cross_encoder_score", "query_key", "product_key"],
-                descending=[True, False, False],
-            ),
+            keyword_compatibility_examples_base(base),
             "keyword_compatibility_or_product_type_mismatch",
         )
     )

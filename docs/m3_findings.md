@@ -22,34 +22,34 @@ Interpretation: Imported CE score artifacts were not modified and CE inference w
 
 Observed result:
 
-BM25: NDCG@5 0.641576, NDCG@10 0.609906, MRR 0.848967, Recall@50 0.298437, Recall@500 0.527779.
-Dense: NDCG@5 0.617645, NDCG@10 0.579609, MRR 0.837741, Recall@50 0.248115, Recall@500 0.486403.
-Weighted Hybrid: NDCG@5 0.680388, NDCG@10 0.656273, MRR 0.880465, Recall@50 0.325851, Recall@500 0.589773.
-RRF: NDCG@5 0.678732, NDCG@10 0.654843, MRR 0.879373, Recall@50 0.328005, Recall@500 0.588507.
+BM25: NDCG@5 0.641576, NDCG@10 0.609906, MRR 0.848967, Recall@10 0.151161, Recall@50 0.298437, Recall@100 0.368246, Recall@500 0.527779.
+Dense: NDCG@5 0.617645, NDCG@10 0.579609, MRR 0.837741, Recall@10 0.116574, Recall@50 0.248115, Recall@100 0.315969, Recall@500 0.486403.
+Weighted Hybrid: NDCG@5 0.680388, NDCG@10 0.656273, MRR 0.880465, Recall@10 0.156111, Recall@50 0.325851, Recall@100 0.408111, Recall@500 0.589773.
+RRF: NDCG@5 0.678732, NDCG@10 0.654843, MRR 0.879373, Recall@10 0.147545, Recall@50 0.328005, Recall@100 0.410666, Recall@500 0.588507.
 
 Interpretation: Weighted Hybrid is the strongest retrieval/fusion baseline by test NDCG@10.
 
 ## 5 Pointwise Results
 
-Observed result: Pointwise: NDCG@5 0.683448, NDCG@10 0.658381, MRR 0.883380, Recall@50 0.291320, Recall@500 0.589773. Pointwise vs LambdaMART dNDCG@10 = -0.000812.
+Observed result: Pointwise: NDCG@5 0.683448, NDCG@10 0.658381, MRR 0.883380, Recall@10 0.150300, Recall@50 0.291320, Recall@100 0.363628, Recall@500 0.589773. Pointwise vs LambdaMART dNDCG@10 = -0.000812.
 
 Interpretation: Pointwise is competitive but does not beat LambdaMART on aggregate NDCG@10.
 
 ## 6 LambdaMART Results
 
-Observed result: LambdaMART: NDCG@5 0.685001, NDCG@10 0.659193, MRR 0.881553, Recall@50 0.311810, Recall@500 0.589773. LambdaMART vs Weighted Hybrid dNDCG@10 = 0.002920.
+Observed result: LambdaMART: NDCG@5 0.685001, NDCG@10 0.659193, MRR 0.881553, Recall@10 0.157479, Recall@50 0.311810, Recall@100 0.387248, Recall@500 0.589773. LambdaMART vs Weighted Hybrid dNDCG@10 = 0.002920.
 
 Interpretation: LambdaMART is the best aggregate M3 method by test NDCG@10.
 
 ## 7 CE-A Results
 
-Observed result: Hybrid->CE: NDCG@5 0.613957, NDCG@10 0.553624, MRR 0.835182, Recall@50 0.353951, Recall@500 0.408111. Hybrid->CE vs Weighted Hybrid dNDCG@10 = -0.102650. CE-A reranks Hybrid top 100.
+Observed result: Hybrid->CE: NDCG@5 0.613957, NDCG@10 0.553624, MRR 0.835182, Recall@10 0.188884, Recall@50 0.353951, Recall@100 0.408111, Recall@500 0.408111. Hybrid->CE vs Weighted Hybrid dNDCG@10 = -0.102650. CE-A reranks Hybrid top 100.
 
 Interpretation: CE-A regresses in this cascade, consistent with objective/domain mismatch.
 
 ## 8 CE-B Results
 
-Observed result: Hybrid->LambdaMART->CE: NDCG@5 0.559085, NDCG@10 0.481169, MRR 0.795038, Recall@50 0.311810, Recall@500 0.311810. Hybrid->LambdaMART->CE vs LambdaMART dNDCG@10 = -0.178024. CE-B reranks LambdaMART top 50.
+Observed result: Hybrid->LambdaMART->CE: NDCG@5 0.559085, NDCG@10 0.481169, MRR 0.795038, Recall@10 0.183020, Recall@50 0.311810, Recall@100 0.311810, Recall@500 0.311810. Hybrid->LambdaMART->CE vs LambdaMART dNDCG@10 = -0.178024. CE-B reranks LambdaMART top 50.
 
 Interpretation: CE-B is the largest aggregate regression.
 
@@ -145,15 +145,15 @@ Observed result: final table `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf
 
 Full final comparison:
 
-| Method | Role | Queries | NDCG@5 | NDCG@10 | MRR | Recall@50 | Recall@500 | Depth |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| BM25 | retrieval baseline | 8956 | 0.641576 | 0.609906 | 0.848967 | 0.298437 | 0.527779 | 500 |
-| Dense | retrieval baseline | 8956 | 0.617645 | 0.579609 | 0.837741 | 0.248115 | 0.486403 | 500 |
-| Weighted Hybrid | retrieval fusion | 8956 | 0.680388 | 0.656273 | 0.880465 | 0.325851 | 0.589773 | 500 |
-| RRF | retrieval fusion | 8956 | 0.678732 | 0.654843 | 0.879373 | 0.328005 | 0.588507 | 500 |
-| Pointwise | learned reranker | 8956 | 0.683448 | 0.658381 | 0.883380 | 0.291320 | 0.589773 | 500 |
-| LambdaMART | learned reranker | 8956 | 0.685001 | 0.659193 | 0.881553 | 0.311810 | 0.589773 | 500 |
-| Hybrid->CE | cross-encoder reranker | 8956 | 0.613957 | 0.553624 | 0.835182 | 0.353951 | 0.408111 | 100 |
-| Hybrid->LambdaMART->CE | cascade reranker | 8956 | 0.559085 | 0.481169 | 0.795038 | 0.311810 | 0.311810 | 50 |
+| Method | Role | Queries | NDCG@5 | NDCG@10 | MRR | Recall@10 | Recall@50 | Recall@100 | Recall@500 | Depth |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| BM25 | retrieval baseline | 8956 | 0.641576 | 0.609906 | 0.848967 | 0.151161 | 0.298437 | 0.368246 | 0.527779 | 500 |
+| Dense | retrieval baseline | 8956 | 0.617645 | 0.579609 | 0.837741 | 0.116574 | 0.248115 | 0.315969 | 0.486403 | 500 |
+| Weighted Hybrid | retrieval fusion | 8956 | 0.680388 | 0.656273 | 0.880465 | 0.156111 | 0.325851 | 0.408111 | 0.589773 | 500 |
+| RRF | retrieval fusion | 8956 | 0.678732 | 0.654843 | 0.879373 | 0.147545 | 0.328005 | 0.410666 | 0.588507 | 500 |
+| Pointwise | learned reranker | 8956 | 0.683448 | 0.658381 | 0.883380 | 0.150300 | 0.291320 | 0.363628 | 0.589773 | 500 |
+| LambdaMART | learned reranker | 8956 | 0.685001 | 0.659193 | 0.881553 | 0.157479 | 0.311810 | 0.387248 | 0.589773 | 500 |
+| Hybrid->CE | cross-encoder reranker | 8956 | 0.613957 | 0.553624 | 0.835182 | 0.188884 | 0.353951 | 0.408111 | 0.408111 | 100 |
+| Hybrid->LambdaMART->CE | cascade reranker | 8956 | 0.559085 | 0.481169 | 0.795038 | 0.183020 | 0.311810 | 0.311810 | 0.311810 | 50 |
 
 Interpretation: These generated artifacts support the values in this report.

@@ -113,3 +113,21 @@ def test_slice_notes_handles_empty_rows() -> None:
     )
 
     assert notes == "- query_length: no slice rows available."
+
+
+def test_keyword_compatibility_examples_select_low_ce_scores_in_hybrid_top100() -> None:
+    mod = _module()
+    frame = pl.DataFrame(
+        {
+            "query_key": ["q2", "q1", "q1", "q1", "q0"],
+            "product_key": ["a", "b", "a", "c", "z"],
+            "in_hybrid_top_100": [True, True, True, True, False],
+            "cross_encoder_score": [0.2, 0.1, 0.1, 0.9, -10.0],
+        }
+    )
+
+    selected = mod.keyword_compatibility_examples_base(frame)
+
+    assert selected["query_key"].to_list() == ["q1", "q1", "q2", "q1"]
+    assert selected["product_key"].to_list() == ["a", "b", "a", "c"]
+    assert selected["cross_encoder_score"].to_list() == [0.1, 0.1, 0.2, 0.9]

@@ -76,7 +76,8 @@ def _metric(row: dict[str, Any]) -> str:
     return (
         f"{row['method']}: NDCG@5 {fmt(row['ndcg_5'])}, "
         f"NDCG@10 {fmt(row['ndcg_10'])}, MRR {fmt(row['mrr'])}, "
-        f"Recall@50 {fmt(row['recall_50'])}, Recall@500 {fmt(row['recall_500'])}."
+        f"Recall@10 {fmt(row['recall_10'])}, Recall@50 {fmt(row['recall_50'])}, "
+        f"Recall@100 {fmt(row['recall_100'])}, Recall@500 {fmt(row['recall_500'])}."
     )
 
 
@@ -102,14 +103,17 @@ def _slice_notes(slices: dict[str, Any]) -> str:
 
 def _final_table(rows: list[dict[str, Any]]) -> str:
     lines = [
-        "| Method | Role | Queries | NDCG@5 | NDCG@10 | MRR | Recall@50 | Recall@500 | Depth |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+        "| Method | Role | Queries | NDCG@5 | NDCG@10 | MRR | Recall@10 | Recall@50 | "
+        "Recall@100 | Recall@500 | Depth |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         lines.append(
             f"| {row['method']} | {row['model_role']} | {row['queries']} | "
             f"{fmt(row['ndcg_5'])} | {fmt(row['ndcg_10'])} | {fmt(row['mrr'])} | "
-            f"{fmt(row['recall_50'])} | {fmt(row['recall_500'])} | {row['candidate_depth']} |"
+            f"{fmt(row['recall_10'])} | {fmt(row['recall_50'])} | "
+            f"{fmt(row['recall_100'])} | {fmt(row['recall_500'])} | "
+            f"{row['candidate_depth']} |"
         )
     return "\n".join(lines)
 

@@ -218,16 +218,18 @@ its artifact run directory.
 
 ### Final M3 test comparison
 
-| Method | NDCG@10 | MRR |
-|---|---:|---:|
-| BM25 | 0.609906 | 0.848967 |
-| Dense | 0.579609 | 0.837741 |
-| Weighted Hybrid | 0.656273 | 0.880465 |
-| RRF | 0.654843 | 0.879373 |
-| Pointwise | 0.658381 | 0.883380 |
-| LambdaMART | 0.659193 | 0.881553 |
-| Hybrid->CE | 0.553624 | 0.835182 |
-| Hybrid->LambdaMART->CE | 0.481169 | 0.795038 |
+| Method | NDCG@10 | MRR | Recall@10 | Recall@50 | Recall@100 | Recall@500 | Depth |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| BM25 | 0.609906 | 0.848967 | 0.151161 | 0.298437 | 0.368246 | 0.527779 | 500 |
+| Dense | 0.579609 | 0.837741 | 0.116574 | 0.248115 | 0.315969 | 0.486403 | 500 |
+| Weighted Hybrid | 0.656273 | 0.880465 | 0.156111 | 0.325851 | 0.408111 | 0.589773 | 500 |
+| RRF | 0.654843 | 0.879373 | 0.147545 | 0.328005 | 0.410666 | 0.588507 | 500 |
+| Pointwise | 0.658381 | 0.883380 | 0.150300 | 0.291320 | 0.363628 | 0.589773 | 500 |
+| LambdaMART | 0.659193 | 0.881553 | 0.157479 | 0.311810 | 0.387248 | 0.589773 | 500 |
+| Hybrid->CE | 0.553624 | 0.835182 | 0.188884 | 0.353951 | 0.408111 | 0.408111 | 100 |
+| Hybrid->LambdaMART->CE | 0.481169 | 0.795038 | 0.183020 | 0.311810 | 0.311810 | 0.311810 | 50 |
+
+Recall columns for CE cascades are depth-constrained by the reranked candidate set. CE-A reranks Hybrid top 100, and CE-B has only 50 reranked candidates, so CE-B Recall@100 and Recall@500 equal Recall@50 by construction.
 
 Interpretation: LambdaMART is best by test NDCG@10. The pretrained MS MARCO cross-encoder is a negative result on this ESCI cascade, and the audit found no evaluator/import bug explaining the regression.
 
