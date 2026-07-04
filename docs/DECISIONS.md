@@ -42,13 +42,18 @@
 - **Reason:** the model is explicitly designed for semantic search, has a compact 384-dimensional
   representation, and supports CPU, CUDA, and Apple MPS encoding paths.
 
-## ADR-007: Pin faiss to one OpenMP thread on macOS
+## ADR-007: Single-thread the dense build's threading layers on macOS
 
-- **Decision:** in the dense build path, call `faiss.omp_set_num_threads(1)` when
-  `sys.platform == "darwin"`.
-- **Reason:** PyTorch and faiss-cpu each bundle their own OpenMP runtime. On macOS the two
-  runtimes collide and segfault (exit 139) inside faiss IVF k-means training once PyTorch's
-  runtime is already initialized. Single-thread faiss avoids the crash; empirically, moderate
-  thread counts deadlock. Retrieval runs one query per FAISS search call in a Python loop, so
-  the thread limit changes neither results nor the per-query latency measurement path. The guard
-  is macOS-only so Linux/CUDA hosts keep default faiss parallelism.
+- **Decision:** on `sys.platform == "darwin"`, before importing torch or faiss, set
+  `OMP_NUM_THREADS=OPENBLAS_NUM_THREADS=VECLIB_MAXIMUM_THREADS=MKL_NUM_THREADS=1` and
+  `KMP_DUPLICATE_LIB_OK=TRUE` (in `scripts/run_retrieval.py`). Also call
+  `faiss.omp_set_num_threads(1)` in the dense build as a secondary guard.
+- **Reason:** PyTorch and faiss-cpu each bundle their own OpenMP/BLAS runtimes. On macOS, once
+  torch's runtime is initialized, faiss IVF k-means training first segfaulted (exit 139); pinning
+  only `faiss.omp_set_num_threads(1)` after import removed the segfault but then the BLAS thread
+  pool used by k-means **deadlocked** at full-catalog scale (observed: >60 min at ~0% CPU on 1.2M
+  vectors with no index written). Constraining every threading layer to one thread *before* torch
+  and faiss load prevents the conflicting thread pools from forming: the same 1.2M IVF
+  train+add+search then completes in ~4 seconds. Retrieval runs one query per FAISS search call in
+  a Python loop, so single-threaded faiss changes neither results nor the per-query latency path.
+  The guard is macOS-only so Linux/CUDA hosts, which share one runtime, keep default parallelism.
