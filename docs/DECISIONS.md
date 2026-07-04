@@ -57,3 +57,21 @@
   train+add+search then completes in ~4 seconds. Retrieval runs one query per FAISS search call in
   a Python loop, so single-threaded faiss changes neither results nor the per-query latency path.
   The guard is macOS-only so Linux/CUDA hosts, which share one runtime, keep default parallelism.
+
+## ADR-008: Canonical full dense benchmark executed on Colab CUDA
+
+- **Decision:** produce the canonical full dense retrieval artifact on a Google Colab CUDA GPU
+  from a clean checkout of the committed code (`21842f8`) using the same processed dataset
+  (fingerprint `dda38161...`), rather than locally.
+- **Reason:** encoding 1.2M product texts on the local 18 GB machine was memory-bound
+  (measured ~50-100 rows/s, swap exhaustion, OOM risk at the ~1.9 GB IVF index build). CUDA is
+  faster and has RAM headroom, and Linux shares one OpenMP/BLAS runtime so the macOS faiss/torch
+  conflict (ADR-007) does not arise. Provenance is preserved: the run records `git_commit=21842f8`,
+  `git_dirty=false`, `dataset_fingerprint=dda38161...`, and `device=cuda`. Artifacts were
+  transferred back and every invariant (counts, dim, schema, NaN, fingerprint, provenance) was
+  re-verified locally before use.
+- **Consequence:** quality metrics (recall/MRR/NDCG) are hardware-independent and directly
+  comparable to the local BM25 run. Latency is **not** cross-method comparable (BM25 local CPU vs
+  dense Colab T4); RESULTS.md labels latency by hardware and defers a same-hardware latency study.
+  The pinned encoder is used without fine-tuning, so device-level float differences do not affect
+  the qualitative finding that untuned dense underperforms BM25 while fusion beats both.

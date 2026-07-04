@@ -122,7 +122,83 @@ its artifact run directory.
 - macOS OpenMP segfault in faiss IVF training fixed by ADR-007
 - Interpretation: plumbing verified end to end; these metrics are not promoted to scientific results.
 
-## M2C hybrid / candidate contract / final comparison
+## M2B full dense benchmark (canonical, clean provenance)
 
-- Status: pending execution now that clean BM25 and dense-smoke artifacts exist; no dense or
-  hybrid metrics are fabricated until the commands succeed.
+- Command status: `SUCCESS`
+- Evidence status: `CANONICAL`
+- Execution: run on Google Colab CUDA (T4) because encoding 1.2M products was infeasible on the
+  local 18 GB machine (memory-bound: measured ~50-100 rows/s with swap exhaustion and OOM risk at
+  the ~1.9 GB FAISS index build). Code was a clean checkout of commit `21842f8` pushed to
+  `github.com/YashDThapliyal/adaptirank`; artifacts were transferred back and re-verified locally.
+- Run artifact: `artifacts/runs/20260704T022330796938Z-retrieval_full_scientific_dense-4abe16e3`
+- Provenance: `git_commit = 21842f8ac4fc379d3dd2a989746249f2adfef0e1`, `git_dirty = false`,
+  `status = SUCCESS`, `seed = 42`, `device = cuda`
+- Dataset fingerprint: `dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667` (matches M1.5)
+- Encoder: `sentence-transformers/multi-qa-MiniLM-L6-cos-v1` @ `b207367332321f8e44f96e224ef15bc607f4dbf0`,
+  `fine_tuned = false`, 384-dim, fields title + description + brand
+- Index: `IndexIVFFlat`, nlist 1102, nprobe 64, document_count 1,215,854
+- Local re-verification: embeddings/product_keys/catalog counts all equal 1,215,854; candidate
+  schema valid; 5,522,500 candidate rows = 11,045 queries x 500; zero NaN/null scores; cosine
+  scores in [0.2145, 1.0]; ranks 1-500; every query has exactly 500 candidates. The 1.87 GB
+  `product_embeddings.npy` and `faiss.index` remain on Colab/Drive (excluded from transfer);
+  their reload and `ntotal` were exercised on Colab by the retrieval that produced the candidates.
+- Test primary Recall E+S @10/@50/@100/@500: 0.116494 / 0.247943 / 0.315783 / 0.486097
+- Test sensitivity Recall E+S+C @10/@50/@100/@500: 0.114132 / 0.245068 / 0.312472 / 0.481779
+- Test condensed MRR: 0.837209; NDCG@5/@10: 0.617297 / 0.579274
+- Interpretation: the untuned pretrained dense encoder **underperforms BM25** on this ESCI catalog.
+  This is a measured E1 finding, consistent with lexical-heavy product search; it is not a defect.
+
+## M2C hybrid full benchmark (canonical, clean provenance)
+
+- Command status: `SUCCESS`; `git_commit = 21842f8`, `git_dirty = false`, fingerprint `dda38161...`
+- Run artifact: `artifacts/runs/20260704T033507773901Z-retrieval_full_scientific_hybrid-254c0f0c`
+- Consumes persisted canonical BM25 (`selected_candidates`, title) and canonical dense
+  (`raw_candidates`) artifacts on the same fingerprint; keys align by (query_key, product_key).
+- Fusion: per-query min-max weighted fusion and reciprocal rank fusion (rrf_k = 60).
+- Weighted-fusion alpha selected on **validation only** (objective validation Recall@100 then
+  NDCG@10), then frozen before any test evaluation. `score = alpha*bm25_norm + (1-alpha)*dense_norm`
+  (alpha=1 is pure BM25, alpha=0 is pure dense).
+- Validation alpha sweep (Recall@100 / NDCG@10):
+  0.0 = 0.3159 / 0.5754; 0.25 = 0.3645 / 0.6452; **0.5 = 0.4039 / 0.6482 (selected)**;
+  0.75 = 0.3920 / 0.6451; 1.0 = 0.3649 / 0.6191. Full sweep recorded in
+  `artifacts/retrieval/<fp>/full_scientific/hybrid/tuning.json`.
+
+### E1 final test comparison (frozen alpha = 0.5)
+
+| Method | R@10 E+S | R@50 | R@100 | R@500 | MRR | NDCG@10 |
+|---|---:|---:|---:|---:|---:|---:|
+| BM25 (title) | 0.1512 | 0.2983 | 0.3683 | 0.5277 | 0.8489 | 0.6098 |
+| Dense (MiniLM) | 0.1165 | 0.2479 | 0.3158 | 0.4861 | 0.8372 | 0.5793 |
+| Weighted hybrid | 0.1559 | 0.3258 | 0.4080 | 0.5896 | 0.8800 | 0.6563 |
+| RRF | 0.1472 | 0.3276 | 0.4108 | 0.5884 | 0.8795 | 0.6549 |
+
+- Finding: dense alone < BM25, but **both fusions beat both components** on Recall@50/100/500, MRR,
+  and NDCG@10. Weighted and RRF are near-identical (RRF marginally higher Recall@100 0.4108 vs
+  0.4080; weighted marginally higher MRR/NDCG). No claim is made that one fusion dominates.
+- Latency (**hardware-mixed — not directly comparable**): BM25 p50/p95 = 0.455 / 2.885 ms on local
+  CPU; dense = 10.705 / 15.695 ms with query encoding + FAISS search on Colab T4 (CUDA); hybrid
+  latency is the conservative sequential sum of both plus fusion (weighted 11.813 / 18.001 ms, RRF
+  11.738 / 17.926 ms). Because BM25 and dense were timed on different hardware, only the quality
+  metrics above are comparable across methods; a same-hardware latency study is deferred.
+
+### Supporting reports (artifact paths under `artifacts/retrieval/<fp>/full_scientific/`)
+
+- BM25 field ablation (validation): title 0.3645 > title+desc+brand 0.2706 > title+desc 0.2582
+  (Recall@100); title-only won — adding description/brand hurt BM25. See `bm25/comparison.json`.
+- Query-length slices (weighted hybrid, test Recall@100): long_6+ 0.4569, medium_3-5 0.4214,
+  short_1-2 0.3197 — short queries are hardest.
+- Lexical-overlap slices (test Recall@100): high 0.4403, low 0.1594, none 0.0311 — queries whose
+  relevant items share no title tokens are near-unretrievable by either signal.
+- Label-structure slices and per-query metrics: `hybrid/weighted/metrics.json`,
+  `hybrid/weighted/per_query_metrics.parquet`.
+- Representative failure: query "recently viewed" (navigational, non-product) -> Recall@100 = 0,
+  5 relevant missed. See `hybrid/failure_analysis.json` and per-method `failure_cases.json`.
+
+## M2 M3-ready candidate contract
+
+- Artifact: `artifacts/retrieval/dda38161.../full_scientific/hybrid/candidate_contract.parquet`
+- Rows: 9,585,620 (union of BM25/dense/hybrid/RRF candidates per query, validation + test)
+- Columns: `query_key, product_key, split, bm25_score, bm25_rank, dense_score, dense_rank,
+  hybrid_score, hybrid_rank, rrf_score, rrf_rank, esci_label, relevance_grade, judgment_status`
+- Judgment status: judged 137,002 / unjudged 9,448,618; every judged row carries `esci_label` and
+  `relevance_grade`; unjudged rows are never relabeled. M3 can consume this without rerunning retrieval.

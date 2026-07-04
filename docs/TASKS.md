@@ -7,9 +7,9 @@
 - [ ] M1 explicit US large variant: `NOT_RUN`.
 - [x] M2 retrieval foundation and shared judged-aware evaluation/candidate contract.
 - [x] M2A BM25 retrieval: fixture, official-sample, and full benchmark passed; canonical clean-provenance rerun promoted (`git_dirty=false`, run `...-e8eb8aac`).
-- [~] M2B pretrained dense retrieval: model downloaded and pinned; official-sample smoke `SUCCESS` (384-dim, IVF+FAISS persisted, judged/unjudged verified); full benchmark pending. macOS OpenMP segfault fixed (ADR-007).
-- [~] M2C weighted and reciprocal-rank hybrid retrieval: unit-tested; smoke/full pending full dense artifacts.
-- [~] M2 full scientific benchmark comparison and failure analysis: clean BM25 canonical; dense/hybrid in progress.
+- [x] M2B pretrained dense retrieval: smoke + full benchmark `SUCCESS`. Full run on Colab CUDA (local was memory-bound), clean provenance (`git_dirty=false`, fingerprint matches M1.5), re-verified locally. Run `...-4abe16e3`. macOS OpenMP segfault + BLAS deadlock fixed (ADR-007).
+- [x] M2C weighted and reciprocal-rank hybrid retrieval: smoke + full `SUCCESS`; validation-only alpha=0.5 frozen before test; both fusions beat both components. Run `...-254c0f0c`.
+- [x] M2 full scientific benchmark comparison, slices, failure analysis, and M3-ready candidate contract complete. See docs/RESULTS.md E1 final comparison.
 - [ ] M3 ranking.
 - [ ] M4 simulator.
 - [ ] M5 bandits.
