@@ -81,7 +81,7 @@ def resolve_release_ref(ref: str = M3_CE_RELEASE_REF, repo_root: Path | None = N
 
     root = repo_root or Path(__file__).resolve().parents[3]
     result = subprocess.run(
-        ["git", "rev-parse", ref],
+        ["git", "rev-parse", f"{ref}^{{commit}}"],
         cwd=root,
         capture_output=True,
         text=True,

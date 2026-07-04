@@ -280,3 +280,31 @@ def test_resolve_release_ref_uses_head_before_release_tag() -> None:
         resolve_release_ref(M3_CE_RELEASE_REF, repo_root)
     except subprocess.CalledProcessError:
         pass
+
+
+def test_resolve_release_ref_dereferences_annotated_tag() -> None:
+    """Annotated tags must resolve to the peeled commit, not the tag object."""
+    import re
+    import subprocess
+
+    repo_root = Path(__file__).resolve().parents[2]
+    try:
+        subprocess.run(
+            ["git", "rev-parse", "--verify", f"{M3_CE_RELEASE_REF}^{{commit}}"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError:
+        pytest.skip(f"{M3_CE_RELEASE_REF} tag not present in this checkout")
+
+    expected = subprocess.run(
+        ["git", "rev-parse", f"{M3_CE_RELEASE_REF}^{{commit}}"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert re.fullmatch(r"[0-9a-f]{40}", expected)
+    assert resolve_release_ref(M3_CE_RELEASE_REF, repo_root) == expected
