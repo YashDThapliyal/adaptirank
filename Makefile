@@ -8,7 +8,7 @@ export UV_CACHE_DIR
 	retrieval-m3-bm25 retrieval-m3-dense retrieval-m3-hybrid \
 	rank-m3-handoff-analysis rank-m3-features rank-m3-learned rank-m3-analysis rank-m3-ce-union \
 	rank-smoke-cross-encoder rank-m3-cross-encoder rank-m3-ce-evaluate rank-m3-ce-package \
-	validate-m3-ce-notebook
+	import-m3-ce-outputs validate-m3-ce-notebook
 
 setup:
 	$(UV) sync --frozen --dev
@@ -103,6 +103,9 @@ rank-m3-ce-evaluate:
 
 rank-m3-ce-package:
 	$(UV) run python scripts/package_m3_ce_handoff.py
+
+import-m3-ce-outputs:
+	$(UV) run python scripts/import_m3_ce_outputs.py
 
 validate-m3-ce-notebook:
 	$(UV) run python scripts/validate_m3_ce_notebook.py

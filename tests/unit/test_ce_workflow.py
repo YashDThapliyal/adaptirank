@@ -9,7 +9,13 @@ import polars as pl
 import pytest
 
 from adaptirank.ranking.ce_workflow import (
+    CE_CANONICAL_ARTIFACTS,
+    SCORES_ENRICHED_COLUMNS,
     consolidate_part_blocks,
+    enrich_scores,
+    finalize_m3_ce_run,
+    run_completeness_audit,
+    score_distribution_report,
     score_union_with_checkpoints,
     verify_ce_union_frame,
     verify_file_sha256,
@@ -156,3 +162,98 @@ def test_score_union_with_checkpoints_resumes(tmp_path: Path) -> None:
     )
     assert out2.height == 4
     assert second.scored_pairs == 0
+
+
+def test_enrich_scores_adds_membership_columns() -> None:
+    union = _union()
+    scores = union.select("query_key", "product_key", "split").with_columns(
+        pl.lit(1.5).cast(pl.Float32).alias("cross_encoder_score")
+    )
+    enriched = enrich_scores(union, scores)
+    assert enriched.columns == list(SCORES_ENRICHED_COLUMNS)
+    assert enriched.height == scores.height
+
+
+def test_score_distribution_report_global_and_split() -> None:
+    scores = (
+        _union()
+        .select("query_key", "product_key", "split")
+        .with_columns(pl.arange(0, 4).cast(pl.Float32).alias("cross_encoder_score"))
+    )
+    report = score_distribution_report(scores)
+    assert report["global"]["count"] == 4
+    assert "train" in report["by_split"]
+    assert report["by_split"]["train"]["count"] == 2
+
+
+def test_run_completeness_audit_passes_with_fixtures(tmp_path: Path) -> None:
+    union = _union()
+    scores = union.select("query_key", "product_key", "split").with_columns(
+        pl.arange(0, union.height).cast(pl.Float32).alias("cross_encoder_score")
+    )
+    enriched = enrich_scores(union, scores)
+    artifacts = {
+        "pair_union.parquet": tmp_path / "pair_union.parquet",
+        "pair_union_manifest.json": tmp_path / "pair_union_manifest.json",
+        "scores.parquet": tmp_path / "scores.parquet",
+        "scores_enriched.parquet": tmp_path / "scores_enriched.parquet",
+        "scoring_stats.json": tmp_path / "scoring_stats.json",
+        "benchmark.json": tmp_path / "benchmark.json",
+        "validation_report.json": tmp_path / "validation_report.json",
+        "score_distribution.json": tmp_path / "score_distribution.json",
+        "provenance.json": tmp_path / "provenance.json",
+        "runtime.json": tmp_path / "runtime.json",
+        "artifact_manifest.json": tmp_path / "artifact_manifest.json",
+    }
+    union.write_parquet(artifacts["pair_union.parquet"])
+    scores.write_parquet(artifacts["scores.parquet"])
+    enriched.write_parquet(artifacts["scores_enriched.parquet"])
+    for name in artifacts:
+        if name.endswith(".json"):
+            artifacts[name].write_text("{}", encoding="utf-8")
+    audit = run_completeness_audit(artifacts, status="SUCCESS")
+    assert audit["status"] == "PASS"
+    assert len(audit["checks"]) == len(CE_CANONICAL_ARTIFACTS)
+
+
+def test_finalize_m3_ce_run_from_checkpoint(tmp_path: Path) -> None:
+    union = _union()
+    pairs = union.select("query_key", "product_key", "split")
+    scores = pairs.with_columns(
+        pl.arange(0, pairs.height).cast(pl.Float32).alias("cross_encoder_score")
+    )
+    drive_root = tmp_path / "drive"
+    checkpoint = drive_root / "checkpoints" / "scores.parquet"
+    checkpoint.parent.mkdir(parents=True)
+    scores.write_parquet(checkpoint)
+    union_manifest = tmp_path / "pair_union_manifest.json"
+    union_manifest.write_text('{"union_pairs": 4}', encoding="utf-8")
+    union_path = tmp_path / "pair_union.parquet"
+    union.write_parquet(union_path)
+    scorer = _FakeScorer()
+    bench_subset = pairs.head(2)
+    result = finalize_m3_ce_run(
+        drive_root=drive_root,
+        union_path=union_path,
+        union_manifest_path=union_manifest,
+        checkpoint_path=checkpoint,
+        pair_frame=union,
+        scorer=scorer,
+        fields=("title", "description", "brand"),
+        gpu_info={"cuda_available": False},
+        benchmark_trials=[{"batch_size": 2, "pairs": 2}],
+        benchmark_subset=bench_subset,
+        selected_batch_size=2,
+        scoring_elapsed_seconds=1.0,
+        notebook_commit="notebook",
+        scoring_code_commit="scoring",
+        artifact_base_commit="artifact",
+        dataset_fingerprint="fp",
+        union_sha256="union",
+        input_archive_sha256="archive",
+        run_times={"scoring_seconds": 1.0},
+    )
+    assert result["rows"] == 4
+    assert result["completeness_audit"]["status"] == "PASS"
+    assert (drive_root / "final" / "scores.parquet").is_file()
+    assert (drive_root / "final" / "scores_enriched.parquet").is_file()

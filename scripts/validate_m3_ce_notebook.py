@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 NOTEBOOK = Path("notebooks/m3_cross_encoder_a100_runall.ipynb")
-EXPECTED_SECTIONS = tuple(range(18))
+EXPECTED_SECTIONS = tuple(range(19))
 
 
 def _cell_source(cell: dict[str, Any]) -> str:

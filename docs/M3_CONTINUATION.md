@@ -22,6 +22,14 @@ auctions, RL, multi-agent, serving, agentic).**
   `16a43b01f0ba159e5950c1fe7d4363b6c05d7b0c9ffe6c581272379ef9c8488d`.
 - ✅ Cross-encoder smoke/resume remains valid; scalable per-block checkpointing is implemented.
 - ✅ Canonical A100 run-all notebook is ready at `notebooks/m3_cross_encoder_a100_runall.ipynb`.
+- **Durable CE artifact contract (no-rerun downstream):** after the A100 run,
+  `finalize_m3_ce_run` writes canonical artifacts under Drive `final/` and `metadata/`:
+  `pair_union.parquet`, `scores.parquet`, `scores_enriched.parquet`, `scoring_stats.json`,
+  `benchmark.json`, `validation_report.json`, `score_distribution.json`, `provenance.json`,
+  `runtime.json`, `artifact_manifest.json`, plus `m3_ce_local_transfer.tar.gz` for local import.
+  Transfer the bundle back and run `make import-m3-ce-outputs`, then
+  `make rank-m3-ce-evaluate` without rerunning CE scoring.
+
 - ⏳ Full A100 CE union scoring and cascade evaluation remain pending. M3 is therefore not complete.
 - ⚠️ Runs created while implementing the new local pipeline record `git_dirty=true`; they are
   development evidence. Clean-provenance reruns are required after committing the implementation.

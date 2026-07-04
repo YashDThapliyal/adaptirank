@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import json
 import math
+import shutil
+import subprocess
+import tarfile
 import time
 from importlib import import_module
 from pathlib import Path
@@ -40,6 +43,65 @@ _CONFIG_PATH = Path(__file__).resolve().parents[3] / "configs/ranking/cross_enco
 _PINNED_CONFIG = load_config(_CONFIG_PATH, CrossEncoderRunConfig)
 PINNED_CE_MODEL = _PINNED_CONFIG.cross_encoder.model_name
 PINNED_CE_REVISION = _PINNED_CONFIG.cross_encoder.model_revision
+
+NOTEBOOK_COMMIT = "a533d28199d755ae9c9a49c472015d4700d4e629"
+
+SCORES_MINIMAL_COLUMNS: tuple[str, ...] = (
+    "query_key",
+    "product_key",
+    "split",
+    "cross_encoder_score",
+)
+UNION_MEMBERSHIP_COLUMNS: tuple[str, ...] = (
+    "in_hybrid_top_100",
+    "in_lambdamart_top_50",
+    "hybrid_rank",
+    "lambdamart_rank",
+)
+SCORES_ENRICHED_COLUMNS: tuple[str, ...] = SCORES_MINIMAL_COLUMNS + UNION_MEMBERSHIP_COLUMNS
+
+CE_CANONICAL_ARTIFACTS: tuple[str, ...] = (
+    "pair_union.parquet",
+    "pair_union_manifest.json",
+    "scores.parquet",
+    "scores_enriched.parquet",
+    "scoring_stats.json",
+    "benchmark.json",
+    "validation_report.json",
+    "score_distribution.json",
+    "provenance.json",
+    "runtime.json",
+    "artifact_manifest.json",
+)
+
+CE_LOCAL_TRANSFER_BUNDLE = "m3_ce_local_transfer.tar.gz"
+CE_FULL_BUNDLE = "m3_ce_a100_outputs.tar.gz"
+
+
+def read_notebook_commit(repo_root: Path | None = None) -> str:
+    """Return the current git HEAD when available, else the pinned notebook commit."""
+
+    root = repo_root or Path(__file__).resolve().parents[3]
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return NOTEBOOK_COMMIT
+
+
+def atomic_write_parquet(path: Path, frame: pl.DataFrame) -> None:
+    """Write parquet through a temporary sibling file and atomic replace."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    frame.write_parquet(temporary)
+    temporary.replace(path)
 
 
 def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -109,7 +171,7 @@ def verify_ce_union_frame(
 ) -> dict[str, Any]:
     """Validate the Hybrid-top-100/LambdaMART-top-50 CE pair union."""
 
-    required = {"query_key", "product_key", "split", "in_hybrid_top_100", "in_lambdamart_top_50"}
+    required = {"query_key", "product_key", "split", *UNION_MEMBERSHIP_COLUMNS}
     missing = _missing_columns(frame, required)
     if missing:
         raise ValueError(f"CE union is missing columns: {missing}")
@@ -167,6 +229,432 @@ def verify_ce_union_files(
             raise ValueError("CE union manifest pair_union_sha256 does not match parquet")
         stats["manifest_path"] = str(manifest_path.resolve())
     return stats
+
+
+def enrich_scores(union: pl.DataFrame, scores: pl.DataFrame) -> pl.DataFrame:
+    membership = union.select("query_key", "product_key", "split", *UNION_MEMBERSHIP_COLUMNS)
+    minimal = scores.select(*SCORES_MINIMAL_COLUMNS)
+    enriched = minimal.join(membership, on=["query_key", "product_key", "split"], how="left")
+    missing = _missing_columns(enriched, set(SCORES_ENRICHED_COLUMNS))
+    if missing:
+        raise ValueError(f"enriched scores missing columns: {missing}")
+    return enriched.select(*SCORES_ENRICHED_COLUMNS)
+
+
+def _score_distribution_stats(frame: pl.DataFrame) -> dict[str, Any]:
+    column = frame.get_column("cross_encoder_score")
+    quantiles = column.quantile([0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99])
+    return {
+        "count": frame.height,
+        "min": float(column.min()),  # type: ignore[arg-type]
+        "max": float(column.max()),  # type: ignore[arg-type]
+        "mean": float(column.mean()),  # type: ignore[arg-type]
+        "std": float(column.std()),  # type: ignore[arg-type]
+        "quantiles": {
+            "p01": float(quantiles[0]),  # type: ignore[arg-type]
+            "p05": float(quantiles[1]),  # type: ignore[arg-type]
+            "p25": float(quantiles[2]),  # type: ignore[arg-type]
+            "p50": float(quantiles[3]),  # type: ignore[arg-type]
+            "p75": float(quantiles[4]),  # type: ignore[arg-type]
+            "p95": float(quantiles[5]),  # type: ignore[arg-type]
+            "p99": float(quantiles[6]),  # type: ignore[arg-type]
+        },
+    }
+
+
+def score_distribution_report(scores: pl.DataFrame) -> dict[str, Any]:
+    missing = _missing_columns(scores, set(SCORES_MINIMAL_COLUMNS))
+    if missing:
+        raise ValueError(f"scores frame is missing columns: {missing}")
+    report: dict[str, Any] = {"global": _score_distribution_stats(scores), "by_split": {}}
+    for split in scores.get_column("split").unique().sort().to_list():
+        report["by_split"][str(split)] = _score_distribution_stats(
+            scores.filter(pl.col("split") == split)
+        )
+    return report
+
+
+def extended_validation_report(
+    union: pl.DataFrame,
+    scores: pl.DataFrame,
+    *,
+    union_sha256: str,
+    scores_sha256: str,
+    expected_rows: int | None = None,
+) -> dict[str, Any]:
+    union_stats = verify_ce_union_frame(union, expected_rows=expected_rows)
+    score_stats = verify_final_scores(
+        union.select("query_key", "product_key", "split"), scores.select(*SCORES_MINIMAL_COLUMNS)
+    )
+    enriched = enrich_scores(union, scores)
+    return {
+        "union": {**union_stats, "sha256": union_sha256},
+        "scores": {**score_stats, "sha256": scores_sha256, "columns": list(SCORES_MINIMAL_COLUMNS)},
+        "enriched": {"rows": enriched.height, "columns": list(SCORES_ENRICHED_COLUMNS)},
+        "status": "PASS",
+    }
+
+
+def collect_model_provenance(scorer: CrossEncoderScorer, fields: PairField) -> dict[str, Any]:
+    return {
+        "model_name": scorer.model_name,
+        "model_revision": scorer.model_revision,
+        "device": scorer.device,
+        "batch_size": scorer.batch_size,
+        "max_length": scorer.max_length,
+        "pair_fields": list(fields),
+        "product_text_policy": (
+            "concatenate configured catalog fields in order; skip empty or null values"
+        ),
+        "role": "pretrained MS MARCO baseline; not e-commerce fine-tuned",
+    }
+
+
+def build_scoring_stats_dict(
+    scorer: CrossEncoderScorer,
+    pair_count: int,
+    elapsed_seconds: float,
+    **extra: Any,
+) -> dict[str, Any]:
+    stats = {
+        "model_name": scorer.model_name,
+        "model_revision": scorer.model_revision,
+        "device": scorer.device,
+        "batch_size": scorer.batch_size,
+        "max_length": scorer.max_length,
+        "pairs_scored": pair_count,
+        "elapsed_seconds": elapsed_seconds,
+        "pairs_per_second": pair_count / elapsed_seconds if elapsed_seconds > 0 else 0.0,
+    }
+    stats.update(extra)
+    return stats
+
+
+def build_benchmark_dict(
+    trials: list[dict[str, Any]],
+    subset_fingerprint: str,
+    gpu_info: dict[str, Any],
+    selected_batch_size: int,
+) -> dict[str, Any]:
+    return {
+        "subset_fingerprint": subset_fingerprint,
+        "gpu": gpu_info,
+        "selected_batch_size": selected_batch_size,
+        "trials": trials,
+    }
+
+
+def build_provenance_record(
+    *,
+    notebook_commit: str,
+    scoring_code_commit: str,
+    artifact_base_commit: str,
+    dataset_fingerprint: str,
+    union_manifest: dict[str, Any],
+    input_archive_sha256: str,
+    model_provenance: dict[str, Any],
+    **extra: Any,
+) -> dict[str, Any]:
+    record: dict[str, Any] = {
+        "notebook_commit": notebook_commit,
+        "scoring_code_commit": scoring_code_commit,
+        "artifact_base_commit": artifact_base_commit,
+        "dataset_fingerprint": dataset_fingerprint,
+        "union_manifest": union_manifest,
+        "input_archive_sha256": input_archive_sha256,
+        "model": model_provenance,
+    }
+    record.update(extra)
+    return record
+
+
+_ARTIFACT_PURPOSES = {
+    "pair_union.parquet": "canonical CE-A/CE-B deduplicated pair union",
+    "pair_union_manifest.json": "union row count and SHA-256 manifest",
+    "scores.parquet": "minimal CE scores for cascade evaluation",
+    "scores_enriched.parquet": "scores joined with union membership for CE-score ablation",
+    "scoring_stats.json": "full-run scoring throughput and model config",
+    "benchmark.json": "validation-subset batch-size benchmark",
+    "validation_report.json": "union and score invariant validation",
+    "score_distribution.json": "global and per-split score distribution",
+    "provenance.json": "notebook, code, artifact-base, and model provenance",
+    "runtime.json": "phase wall-clock timings",
+    "artifact_manifest.json": "durable artifact index with SHA-256 and sizes",
+    CE_LOCAL_TRANSFER_BUNDLE: "local import bundle for no-rerun downstream",
+    CE_FULL_BUNDLE: "full Drive archive of durable CE outputs",
+}
+
+
+def build_artifact_manifest(drive_root: Path) -> dict[str, Any]:
+    search_roots = [drive_root / "final", drive_root / "metadata", drive_root / "checkpoints"]
+    artifacts = []
+    for root in search_roots:
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*")):
+            if not path.is_file():
+                continue
+            artifacts.append(
+                {
+                    "path": str(path.relative_to(drive_root)),
+                    "sha256": sha256_file(path),
+                    "size_bytes": path.stat().st_size,
+                    "purpose": _ARTIFACT_PURPOSES.get(path.name, f"artifact under {root.name}/"),
+                }
+            )
+    return {
+        "drive_root": str(drive_root.resolve()),
+        "artifacts": artifacts,
+        "artifact_count": len(artifacts),
+    }
+
+
+def _audit_scores_parquet(path: Path) -> None:
+    frame = pl.read_parquet(path)
+    missing = _missing_columns(frame, set(SCORES_MINIMAL_COLUMNS))
+    if missing:
+        raise ValueError(f"missing columns: {missing}")
+    invalid = frame.filter(
+        pl.col("cross_encoder_score").is_null()
+        | pl.col("cross_encoder_score").is_nan()
+        | pl.col("cross_encoder_score").is_infinite()
+    ).height
+    if invalid:
+        raise ValueError(f"{invalid} invalid scores")
+
+
+def _audit_enriched_parquet(path: Path) -> None:
+    frame = pl.read_parquet(path)
+    missing = _missing_columns(frame, set(SCORES_ENRICHED_COLUMNS))
+    if missing:
+        raise ValueError(f"missing columns: {missing}")
+
+
+def _audit_union_parquet(path: Path) -> None:
+    verify_ce_union_frame(pl.read_parquet(path), expected_rows=None)
+
+
+def _audit_json_object(path: Path) -> None:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("expected JSON object")
+
+
+def run_completeness_audit(
+    artifacts: dict[str, Path], *, status: str = "SUCCESS"
+) -> dict[str, Any]:
+    validators = {
+        "pair_union.parquet": _audit_union_parquet,
+        "pair_union_manifest.json": _audit_json_object,
+        "scores.parquet": _audit_scores_parquet,
+        "scores_enriched.parquet": _audit_enriched_parquet,
+        "scoring_stats.json": _audit_json_object,
+        "benchmark.json": _audit_json_object,
+        "validation_report.json": _audit_json_object,
+        "score_distribution.json": _audit_json_object,
+        "provenance.json": _audit_json_object,
+        "runtime.json": _audit_json_object,
+        "artifact_manifest.json": _audit_json_object,
+    }
+    checks: list[dict[str, Any]] = []
+    for name in CE_CANONICAL_ARTIFACTS:
+        path = artifacts.get(name)
+        if path is None or not path.is_file():
+            checks.append({"artifact": name, "status": "FAIL", "error": "missing"})
+            continue
+        try:
+            validators.get(name, lambda p: None)(path)
+            checks.append(
+                {
+                    "artifact": name,
+                    "status": "PASS",
+                    "path": str(path.resolve()),
+                    "sha256": sha256_file(path),
+                    "size_bytes": path.stat().st_size,
+                }
+            )
+        except Exception as exc:
+            checks.append(
+                {"artifact": name, "status": "FAIL", "path": str(path.resolve()), "error": str(exc)}
+            )
+    audit_status = "PASS" if all(item["status"] == "PASS" for item in checks) else "FAIL"
+    audit = {"status": audit_status, "checks": checks}
+    if status == "SUCCESS" and audit_status == "FAIL":
+        failed = [item["artifact"] for item in checks if item["status"] == "FAIL"]
+        raise ValueError(f"completeness audit failed for: {failed}")
+    return audit
+
+
+def _create_tar_bundle(bundle_path: Path, members: list[tuple[Path, str]]) -> dict[str, Any]:
+    bundle_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = bundle_path.with_suffix(bundle_path.suffix + ".tmp")
+    with tarfile.open(temporary, "w:gz") as handle:
+        for source, arcname in members:
+            if not source.is_file():
+                raise FileNotFoundError(f"bundle member missing: {source}")
+            handle.add(source, arcname=arcname)
+    temporary.replace(bundle_path)
+    return {
+        "path": str(bundle_path.resolve()),
+        "sha256": sha256_file(bundle_path),
+        "size_bytes": bundle_path.stat().st_size,
+    }
+
+
+def _benchmark_subset_fingerprint(subset: pl.DataFrame) -> str:
+    import hashlib
+
+    payload = (
+        subset.select("query_key", "product_key", "split")
+        .sort("split", "query_key", "product_key")
+        .write_csv()
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def finalize_m3_ce_run(
+    *,
+    drive_root: Path,
+    union_path: Path,
+    union_manifest_path: Path,
+    checkpoint_path: Path,
+    pair_frame: pl.DataFrame,
+    scorer: CrossEncoderScorer,
+    fields: PairField,
+    gpu_info: dict[str, Any],
+    benchmark_trials: list[dict[str, Any]],
+    benchmark_subset: pl.DataFrame,
+    selected_batch_size: int,
+    scoring_elapsed_seconds: float,
+    notebook_commit: str,
+    scoring_code_commit: str,
+    artifact_base_commit: str,
+    dataset_fingerprint: str,
+    union_sha256: str,
+    input_archive_sha256: str,
+    run_times: dict[str, float] | None = None,
+    manifest_path: Path | None = None,
+    expected_rows: int | None = EXPECTED_CE_UNION_ROWS,
+) -> dict[str, Any]:
+    final_dir = drive_root / "final"
+    metadata_dir = drive_root / "metadata"
+    logs_dir = drive_root / "logs"
+    for directory in (final_dir, metadata_dir, logs_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+    part_dir = checkpoint_path.with_suffix(checkpoint_path.suffix + ".parts")
+    scores_path = final_dir / "scores.parquet"
+    if part_dir.is_dir() and list_completed_blocks(part_dir):
+        consolidated = consolidate_part_blocks(
+            part_dir,
+            scores_path,
+            expected_pairs=pair_frame.select("query_key", "product_key", "split"),
+        )
+    elif checkpoint_path.is_file():
+        frame = pl.read_parquet(checkpoint_path).select(*SCORES_MINIMAL_COLUMNS)
+        atomic_write_parquet(scores_path, frame.sort("query_key", "product_key"))
+        consolidated = frame
+    else:
+        raise FileNotFoundError(f"no CE checkpoint or part blocks at {checkpoint_path}")
+    scores = consolidated.select(*SCORES_MINIMAL_COLUMNS)
+    scores_sha256 = sha256_file(scores_path)
+    enriched = enrich_scores(pair_frame, scores)
+    enriched_path = final_dir / "scores_enriched.parquet"
+    atomic_write_parquet(enriched_path, enriched)
+    final_union = final_dir / "pair_union.parquet"
+    final_union_manifest = final_dir / "pair_union_manifest.json"
+    shutil.copy2(union_path, final_union)
+    shutil.copy2(union_manifest_path, final_union_manifest)
+    union_manifest = json.loads(union_manifest_path.read_text(encoding="utf-8"))
+    scoring_stats = build_scoring_stats_dict(
+        scorer,
+        scores.height,
+        scoring_elapsed_seconds,
+        dataset_fingerprint=dataset_fingerprint,
+        union_sha256=union_sha256,
+        scores_sha256=scores_sha256,
+        pairs_by_split=scores.group_by("split").len().sort("split").to_dicts(),
+        checkpoint_path=str(checkpoint_path.resolve()),
+        parts_dir_preserved=str(part_dir.resolve()) if part_dir.is_dir() else None,
+    )
+    scoring_stats_path = metadata_dir / "scoring_stats.json"
+    atomic_write_json(scoring_stats_path, scoring_stats)
+    benchmark = build_benchmark_dict(
+        benchmark_trials,
+        _benchmark_subset_fingerprint(benchmark_subset),
+        gpu_info,
+        selected_batch_size,
+    )
+    benchmark_path = metadata_dir / "benchmark.json"
+    atomic_write_json(benchmark_path, benchmark)
+    validation_report = extended_validation_report(
+        pair_frame, scores, union_sha256=union_sha256, scores_sha256=scores_sha256
+    )
+    validation_report_path = metadata_dir / "validation_report.json"
+    atomic_write_json(validation_report_path, validation_report)
+    distribution = score_distribution_report(scores)
+    distribution_path = metadata_dir / "score_distribution.json"
+    atomic_write_json(distribution_path, distribution)
+    model_provenance = collect_model_provenance(scorer, fields)
+    provenance = build_provenance_record(
+        notebook_commit=notebook_commit,
+        scoring_code_commit=scoring_code_commit,
+        artifact_base_commit=artifact_base_commit,
+        dataset_fingerprint=dataset_fingerprint,
+        union_manifest=union_manifest,
+        input_archive_sha256=input_archive_sha256,
+        model_provenance=model_provenance,
+        union_sha256=union_sha256,
+        scores_sha256=scores_sha256,
+    )
+    provenance_path = metadata_dir / "provenance.json"
+    atomic_write_json(provenance_path, provenance)
+    runtime = {
+        "run_times_seconds": run_times or {},
+        "scoring_elapsed_seconds": scoring_elapsed_seconds,
+        "notebook_commit": notebook_commit,
+        "scoring_code_commit": scoring_code_commit,
+    }
+    runtime_path = metadata_dir / "runtime.json"
+    atomic_write_json(runtime_path, runtime)
+    manifest = build_artifact_manifest(drive_root)
+    manifest_path_out = metadata_dir / "artifact_manifest.json"
+    atomic_write_json(manifest_path_out, manifest)
+    artifact_map = {
+        "pair_union.parquet": final_union,
+        "pair_union_manifest.json": final_union_manifest,
+        "scores.parquet": scores_path,
+        "scores_enriched.parquet": enriched_path,
+        "scoring_stats.json": scoring_stats_path,
+        "benchmark.json": benchmark_path,
+        "validation_report.json": validation_report_path,
+        "score_distribution.json": distribution_path,
+        "provenance.json": provenance_path,
+        "runtime.json": runtime_path,
+        "artifact_manifest.json": manifest_path_out,
+    }
+    audit = run_completeness_audit(artifact_map, status="SUCCESS")
+    transfer_members = [
+        (artifact_map[name], f"cross_encoder/{name}") for name in CE_CANONICAL_ARTIFACTS
+    ]
+    transfer_bundle = _create_tar_bundle(final_dir / CE_LOCAL_TRANSFER_BUNDLE, transfer_members)
+    full_members = [(path, f"final/{path.name}") for path in final_dir.iterdir() if path.is_file()]
+    full_members.extend(
+        (path, f"metadata/{path.name}") for path in metadata_dir.iterdir() if path.is_file()
+    )
+    if manifest_path is not None and manifest_path.is_file():
+        full_members.append((manifest_path, f"checkpoints/{manifest_path.name}"))
+    full_bundle = _create_tar_bundle(final_dir / CE_FULL_BUNDLE, full_members)
+    return {
+        "scores_path": str(scores_path.resolve()),
+        "scores_enriched_path": str(enriched_path.resolve()),
+        "scores_sha256": scores_sha256,
+        "union_sha256": union_sha256,
+        "artifact_manifest": manifest,
+        "completeness_audit": audit,
+        "transfer_bundle": transfer_bundle,
+        "full_bundle": full_bundle,
+        "rows": scores.height,
+    }
 
 
 def _pair_rows(
@@ -339,11 +827,9 @@ def consolidate_part_blocks(
     scores = pl.concat([pl.read_parquet(path) for path in blocks], how="vertical")
     if expected_pairs is not None:
         verify_final_scores(expected_pairs, scores)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = output_path.with_suffix(output_path.suffix + ".tmp")
-    scores.sort("query_key", "product_key").write_parquet(temporary)
-    temporary.replace(output_path)
-    return pl.read_parquet(output_path)
+    scores = scores.sort("query_key", "product_key")
+    atomic_write_parquet(output_path, scores)
+    return scores
 
 
 def verify_final_scores(pair_frame: pl.DataFrame, scores: pl.DataFrame) -> dict[str, Any]:
