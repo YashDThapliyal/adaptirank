@@ -202,3 +202,30 @@ its artifact run directory.
   hybrid_score, hybrid_rank, rrf_score, rrf_rank, esci_label, relevance_grade, judgment_status`
 - Judgment status: judged 137,002 / unjudged 9,448,618; every judged row carries `esci_label` and
   `relevance_grade`; unjudged rows are never relabeled. M3 can consume this without rerunning retrieval.
+
+## M3 ranking closeout
+
+- Status: `SUCCESS` analysis evidence; `CANONICAL` clean-provenance rerun pending after commit if promoted.
+- Scope: M3 offline ranking closeout only. No M4 simulator, bandit, OPE, auction, or RL work was started.
+- Dataset fingerprint: `dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667`
+- CE evaluation run: `artifacts/runs/20260704T194646524675Z-ranking_m3_ce_evaluate-90a41912` (`SUCCESS`, historical evidence, dirty due notebook state)
+- Analysis output: `artifacts/ranking/dda38161938e829f2c2fc9b73d40d6cf922a5470c3b45bf176f742ee0ca7c667/m3_three_split/cross_encoder/analysis/`
+- CE import facts: 3,156,056 union rows and 3,156,056 score rows; union SHA `16a43b01f0ba159e5950c1fe7d4363b6c05d7b0c9ffe6c581272379ef9c8488d`; scores SHA `923960c5caeef63b33738cb5b4b9ea6cf2163a3a51676359f77dc68a291dd442`; completeness `PASS`.
+- CE audit: `PASS`; missing scores 0, invalid scores 0, ordering violations 0, membership violations 0.
+- Judgment policy: `UNJUDGED` remains distinct from `IRRELEVANT`; unjudged candidates were not relabeled as negatives.
+
+### Final M3 test comparison
+
+| Method | NDCG@10 | MRR |
+|---|---:|---:|
+| BM25 | 0.609906 | 0.848967 |
+| Dense | 0.579609 | 0.837741 |
+| Weighted Hybrid | 0.656273 | 0.880465 |
+| RRF | 0.654843 | 0.879373 |
+| Pointwise | 0.658381 | 0.883380 |
+| LambdaMART | 0.659193 | 0.881553 |
+| Hybrid->CE | 0.553624 | 0.835182 |
+| Hybrid->LambdaMART->CE | 0.481169 | 0.795038 |
+
+Interpretation: LambdaMART is best by test NDCG@10. The pretrained MS MARCO cross-encoder is a negative result on this ESCI cascade, and the audit found no evaluator/import bug explaining the regression.
+
